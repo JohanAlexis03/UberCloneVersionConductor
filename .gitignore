@@ -1,0 +1,29 @@
+# Environment & Secrets
+.env
+.env*.local
+.env.production
+
+# Dependencies
+node_modules/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build & cache
+.expo/
+dist/
+web-build/
+
+# Local rules, prompts & internal docs (local only)
+.agents/
+AGENTS.md
+docs/
+.claude/
+uberclone-conductor/AGENTS.md
+uberclone-conductor/.claude/
