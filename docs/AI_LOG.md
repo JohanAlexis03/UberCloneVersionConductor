@@ -46,6 +46,20 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "feat(config): add pricing module with pure calculateFare function"
 - **Resumen de la respuesta:** Se implementó `pricing.js` exportando constantes oficiales (`baseFare: 3500`, `perKm: 1200`, `perMin: 250`, `minFare: 6000`, `commissionRate: 0.20`), función pura `calculateFare` con redondeo a múltiplos de 100 COP y helper `formatCOP`.
 - **Qué se usó / modificó / descartó:** Se aplicó manejo estricto de números enteros en pesos colombianos para evitar errores de coma flotante. Las propinas van 100% al conductor.
-- **Archivos y commit:** `uberclone-conductor/src/config/pricing.js` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/config/pricing.js` — `f66eec5`
 - **Verificación:** Pruebas unitarias de cálculo con categoría economy, xl y premium, validando piso de tarifa mínima de $6.000 COP y cálculo de comisión exacto del 20%.
 - **Aprendizaje:** Separación de funciones matemáticas puras fuera del ciclo de vida de React para testing predecible y cero efectos secundarios.
+
+---
+
+### Entrada #3 (Commit 3/32)
+- **Fecha:** 2026-11-02
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Configurar Bottom Tabs para las 3 pestañas de registro del conductor.
+- **Prompt:** "feat(nav): setup bottom tabs navigation for registration"
+- **Resumen de la respuesta:** Se implementó `RegisterTabsNavigator.js` utilizando `createBottomTabNavigator` con las rutas `PersonalData`, `VehicleData` y `Documents`, barra de navegación inferior estilizada y placeholders interactivos de avance de paso.
+- **Qué se usó / modificó / descartó:** Se utilizó `@react-navigation/bottom-tabs` ya disponible en dependencias base; se descartó `material-top-tabs` para evitar instalar dependencias nativas adicionales.
+- **Archivos y commit:** `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `[PENDIENTE_HASH]`
+- **Verificación:** Validación del árbol de rutas de navegación y transiciones entre pasos.
+- **Aprendizaje:** Orquestación de flujos multipaso mediante navegación por pestañas desacoplada.
