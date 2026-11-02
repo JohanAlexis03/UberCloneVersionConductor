@@ -3,6 +3,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
+import PersonalDataScreen from '../screens/auth/PersonalDataScreen';
 const Tab = createBottomTabNavigator();
 
 /**
@@ -115,7 +116,7 @@ export default function RegisterTabsNavigator() {
     >
       <Tab.Screen
         name="PersonalData"
-        component={PersonalDataPlaceholder}
+        component={PersonalDataScreen}
         options={{
           title: 'Registro de Conductor',
           tabBarLabel: '1. Personal',

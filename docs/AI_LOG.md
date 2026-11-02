@@ -60,6 +60,20 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "feat(nav): setup bottom tabs navigation for registration"
 - **Resumen de la respuesta:** Se implementó `RegisterTabsNavigator.js` utilizando `createBottomTabNavigator` con las rutas `PersonalData`, `VehicleData` y `Documents`, barra de navegación inferior estilizada y placeholders interactivos de avance de paso.
 - **Qué se usó / modificó / descartó:** Se utilizó `@react-navigation/bottom-tabs` ya disponible en dependencias base; se descartó `material-top-tabs` para evitar instalar dependencias nativas adicionales.
-- **Archivos y commit:** `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `2b2bb75`
 - **Verificación:** Validación del árbol de rutas de navegación y transiciones entre pasos.
 - **Aprendizaje:** Orquestación de flujos multipaso mediante navegación por pestañas desacoplada.
+
+---
+
+### Entrada #4 (Commit 4/32)
+- **Fecha:** 2026-11-02
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar la Pestaña 1 (Datos Personales) con validaciones en línea en tiempo real, selección de foto de perfil y persistencia de idioma en AsyncStorage.
+- **Prompt:** "feat(auth): implement PersonalDataScreen layout and inline validations"
+- **Resumen de la respuesta:** Se construyó `PersonalDataScreen.js` y las constantes en `options.js`, aplicando validaciones en línea bajo cada campo (nombre con regex, documento, celular de 10 dígitos, fecha +18 años, formato correo e idioma) sin usar `Alert`.
+- **Qué se usó / modificó / descartó:** Se usó `expo-image-picker` para foto de perfil y cálculo de edad; se descartó `Alert` respetando la regla estricta de validación visual en línea.
+- **Archivos y commit:** `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/constants/options.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `[PENDIENTE_HASH]`
+- **Verificación:** Validación interactiva en Expo Go con feedback inmediato bajo cada input al tocar los campos.
+- **Aprendizaje:** Manejo de estado granular de errores por campo (`errors[field]`) en React Native para garantizar una UX sin interrupciones modales.
