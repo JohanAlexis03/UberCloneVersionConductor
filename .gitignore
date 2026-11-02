@@ -23,7 +23,8 @@ web-build/
 # Local rules, prompts & internal docs (local only)
 .agents/
 AGENTS.md
-docs/
+docs/*
+!docs/AI_LOG.md
 .claude/
 uberclone-conductor/AGENTS.md
 uberclone-conductor/.claude/
