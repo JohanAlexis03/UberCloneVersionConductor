@@ -88,8 +88,46 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "feat(auth): implement Tab 2 vehicle data screen layout and inline validations"
 - **Resumen de la respuesta:** Se creó `VehicleDataScreen.js` con campos de categoría, placa con auto-uppercase, marca, modelo, año (1990-actual), selector de color, capacidad condicional y foto de vehículo con `expo-image-picker`. Se agregaron opciones en `options.js` y se integró en `RegisterTabsNavigator.js`.
 - **Qué se usó / modificó / descartó:** Se implementó validación en línea de placa mediante regex colombiano `^[A-Z]{3}\d{3}$` y lógica condicional de capacidad según la categoría seleccionada; se descartó `Alert` para mantener coherencia visual.
-- **Archivos y commit:** `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/constants/options.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/constants/options.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `[5af590e]`
 - **Verificación:** Validación visual en Expo Go del paso de pestaña, auto-formateo de placa y mensajes en línea al cambiar de categoría.
 - **Aprendizaje:** Implementación de validaciones dependientes del estado cruzado (categoría vs capacidad de pasajeros) en formularios reactivos.
+---
 
+### Entrada #6 (Commit 6/32)
+- **Fecha:** 2026-11-06
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Configurar Firebase (Firestore y Auth) en el proyecto Expo con las credenciales protegidas en variables de entorno.
+- **Prompt:** "Configurar Firebase en el proyecto Expo, crear el archivo de conexion y las variables de entorno"
+- **Resumen de la respuesta:** Se instalo el SDK de JavaScript de Firebase y se creo `src/config/firebase.js` con `initializeApp`, `initializeAuth` con persistencia en `AsyncStorage` y `getFirestore`, leyendo las credenciales desde `EXPO_PUBLIC_FIREBASE_*`.
+- **Qué se usó / modificó / descartó:** Se uso el SDK de JavaScript (compatible con Expo Go) en lugar de `@react-native-firebase` para no requerir un development build; se descarto versionar el `.env` real y se creo `.env.example` sin valores.
+- **Archivos y commit:** `uberclone-conductor/src/config/firebase.js`, `uberclone-conductor/.env.example`, `uberclone-conductor/package.json` — `856a526`
+- **Verificación:** Lectura de un documento inexistente en Firestore desde Expo Go, confirmando la conexion sin crear datos.
+- **Aprendizaje:** Las variables `EXPO_PUBLIC_*` se inyectan al construir el bundle, por lo que exigen reiniciar Metro con `--clear`; en React Native la persistencia de Auth se configura con `getReactNativePersistence(AsyncStorage)`.
 
+---
+
+### Entrada #7 (Commit 7/32)
+- **Fecha:** 2026-11-06
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Guardar el registro completo del conductor en Firestore con estado `pending` y bloquear el envio hasta completar las tres pestanas.
+- **Prompt:** "Guardar el registro del conductor en Firestore y agregar el log de IA"
+- **Resumen de la respuesta:** Las pestanas 1 y 2 escriben sus datos en `DriverRegistrationContext` al validar, y la pestana 3 envia un documento a la coleccion `drivers` con los tres bloques de datos, `status: 'pending'` y marcas de tiempo del servidor.
+- **Qué se usó / modificó / descartó:** Se uso `doc(collection(db, 'drivers'))` para generar el ID del conductor, `setDoc` con `serverTimestamp()` y una bandera `registrationComplete` derivada del contexto; se descarto `Alert` para los mensajes de exito y error.
+- **Archivos y commit:** `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js`, `uberclone-conductor/src/context/DriverRegistrationContext.js` — `817a5da`
+- **Verificación:** Pendiente en Expo Go: completar las tres pestanas, enviar el registro y revisar la coleccion `drivers` en la consola de Firestore con `status: pending`.
+- **Aprendizaje:** El estado compartido entre pestanas se resuelve con Context, y `serverTimestamp()` garantiza que la fecha la escriba el servidor y no el dispositivo.
+---
+
+### Entrada #8 (Commit 8/32)
+- **Fecha:** 2026-11-06
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Mejorar la interfaz de las tres pestañas con iconos, respeto de las áreas seguras, diseño adaptable al tamaño de pantalla y corrección del teclado que tapaba los campos.
+- **Prompt:** "Agreguemos iconos, recuerda el safe area, valida el responsive y que el teclado no tape el correo"
+- **Resumen de la respuesta:** Se crearon `FormScreen` y `FieldLabel` como componentes compartidos. `FormScreen` envuelve los formularios en `KeyboardAvoidingView` con `behavior="padding"` y el alto del encabezado como `keyboardVerticalOffset`; `FieldLabel` agrega el icono a cada etiqueta usando Ionicons.
+- **Qué se usó / modificó / descartó:** Se usó `@expo/vector-icons` para los iconos, `useSafeAreaInsets` para la barra inferior y `useWindowDimensions` para adaptar el tamaño de las fotos; se descartó `react-native-keyboard-controller` porque no está incluido en Expo Go y exigiría un development build.
+- **Archivos y commit:** `uberclone-conductor/src/components/FormScreen.js`, `uberclone-conductor/src/components/FieldLabel.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js`, `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js`, `uberclone-conductor/App.js` — `817a5da` (mismo commit que la entrada #7)
+- **Verificación:** Bundle de desarrollo compilado sin errores de resolución (HTTP 200) y validación de los 23 nombres de iconos contra el mapa de glifos de Ionicons.
+- **Aprendizaje:** En Android con edge-to-edge la ventana ya no se redimensiona sola, por lo que `KeyboardAvoidingView` necesita `behavior` en ambas plataformas; además, superponer la altura fija de la barra de pestañas ignora el área segura inferior del dispositivo.
