@@ -1,83 +1,12 @@
 // AI-assisted: see docs/AI_LOG.md #5
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import PersonalDataScreen from '../screens/auth/PersonalDataScreen';
 import VehicleDataScreen from '../screens/auth/VehicleDataScreen';
+import DocumentsScreen from '../screens/auth/DocumentsScreen';
 const Tab = createBottomTabNavigator();
 
-/**
- * Placeholder para el Paso 1: Datos Personales.
- */
-function PersonalDataPlaceholder({ navigation }) {
-  return (
-    <View style={styles.screenContainer}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>Paso 1 de 3</Text>
-      </View>
-      <Text style={styles.title}>Datos Personales</Text>
-      <Text style={styles.subtitle}>
-        Nombre, documento de identidad, celular, fecha de nacimiento (+18), género e idioma.
-      </Text>
-      <TouchableOpacity
-        style={styles.nextButton}
-        onPress={() => navigation.navigate('VehicleData')}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.nextButtonText}>Siguiente: Datos del Vehículo →</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-/**
- * Placeholder para el Paso 2: Datos del Vehículo.
- */
-function VehicleDataPlaceholder({ navigation }) {
-  return (
-    <View style={styles.screenContainer}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>Paso 2 de 3</Text>
-      </View>
-      <Text style={styles.title}>Datos del Vehículo</Text>
-      <Text style={styles.subtitle}>
-        Categoría (Económico, XL, Premium), placa (ABC123), marca, modelo, año y capacidad.
-      </Text>
-      <TouchableOpacity
-        style={styles.nextButton}
-        onPress={() => navigation.navigate('Documents')}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.nextButtonText}>Siguiente: Documentación →</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-/**
- * Placeholder para el Paso 3: Documentación y Pagos.
- */
-function DocumentsPlaceholder({ navigation }) {
-  return (
-    <View style={styles.screenContainer}>
-      <View style={styles.badge}>
-        <Text style={styles.badgeText}>Paso 3 de 3</Text>
-      </View>
-      <Text style={styles.title}>Documentación y Pagos</Text>
-      <Text style={styles.subtitle}>
-        Licencia de conducción, SOAT, Técnico-mecánica, cuenta de pago y aceptación de términos (20 % comisión).
-      </Text>
-      <TouchableOpacity
-        style={[styles.nextButton, styles.disabledButton]}
-        disabled={true}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.nextButtonText}>Enviar Registro (Pendiente de validar)</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 /**
  * Bottom Tabs Navigator for the 3-step Driver Registration flow.
@@ -132,7 +61,7 @@ export default function RegisterTabsNavigator() {
       />
       <Tab.Screen
         name="Documents"
-        component={DocumentsPlaceholder}
+        component={DocumentsScreen}
         options={{
           title: 'Documentos y Pagos',
           tabBarLabel: '3. Documentos',
@@ -142,59 +71,3 @@ export default function RegisterTabsNavigator() {
     </Tab.Navigator>
   );
 }
-
-const styles = StyleSheet.create({
-  screenContainer: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-    padding: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badge: {
-    backgroundColor: '#000000',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginBottom: 16,
-  },
-  badgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#4B5563',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-    maxWidth: 320,
-  },
-  nextButton: {
-    backgroundColor: '#000000',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    width: '100%',
-    maxWidth: 320,
-    alignItems: 'center',
-  },
-  disabledButton: {
-    backgroundColor: '#9CA3AF',
-  },
-  nextButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-});
