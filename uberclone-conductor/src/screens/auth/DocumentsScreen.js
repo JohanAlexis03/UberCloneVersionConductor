@@ -1,15 +1,32 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
+import { doc, collection, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRegistration } from '../../context/DriverRegistrationContext';
+import { db } from '../../config/firebase';
+import FormScreen, { useScrollToEnd } from '../../components/FormScreen';
+import FieldLabel from '../../components/FieldLabel';
 
 export default function DocumentsScreen() {
     const {
+        personalData,
+        vehicleData,
         documentsData,
         updateDocumentsData,
     } = useRegistration();
 
     const [errors, setErrors] = useState({});
+    const [saving, setSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    // Referencia al scroll para acercar los campos que quedan al final
+    const scrollRef = useRef(null);
+    const scrollToEnd = useScrollToEnd(scrollRef);
+
+    // Las fotos de documentos se adaptan al ancho real de la pantalla
+    const { width } = useWindowDimensions();
+    const photoHeight = Math.min(190, Math.round(width * 0.5));
 
     // Seleccionar foto de un documento
     const pickDocumentPhoto = async (fieldName) => {
@@ -126,17 +143,20 @@ export default function DocumentsScreen() {
 
     // Componente para cada documento
     const renderDocument = (
+        icon,
         title,
         description,
         photoField,
         expiryField
     ) => (
         <View style={styles.documentCard}>
-            <Text style={styles.documentTitle}>{title}</Text>
+            <FieldLabel icon={icon} style={styles.documentTitle}>
+                {title}
+            </FieldLabel>
             <Text style={styles.documentDescription}>{description}</Text>
 
             <TouchableOpacity
-                style={styles.photoButton}
+                style={[styles.photoButton, { height: photoHeight }]}
                 onPress={() => pickDocumentPhoto(photoField)}
             >
                 {documentsData[photoField] ? (
@@ -146,7 +166,7 @@ export default function DocumentsScreen() {
                     />
                 ) : (
                     <View style={styles.photoPlaceholder}>
-                        <Text style={styles.photoIcon}>📷</Text>
+                        <Ionicons name="camera-outline" size={28} color="#6B7280" />
                         <Text style={styles.photoText}>Subir fotografía</Text>
                     </View>
                 )}
@@ -156,7 +176,7 @@ export default function DocumentsScreen() {
                 <Text style={styles.errorText}>{errors[photoField]}</Text>
             )}
 
-            <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
+            <FieldLabel icon="calendar-outline">Fecha de vencimiento</FieldLabel>
 
             <TextInput
                 style={[
@@ -175,21 +195,58 @@ export default function DocumentsScreen() {
         </View>
     );
 
+    // El registro solo se puede enviar con las pestanas 1 y 2 completas
+    const registrationComplete = Boolean(
+        personalData.profilePhoto &&
+        personalData.fullName &&
+        personalData.idNumber &&
+        personalData.phone &&
+        personalData.birthDate &&
+        personalData.gender &&
+        personalData.email &&
+        vehicleData.plate &&
+        vehicleData.brand &&
+        vehicleData.model &&
+        vehicleData.year &&
+        vehicleData.color &&
+        vehicleData.vehiclePhoto
+    );
+
     // Guardar documentos
-    const handleSaveDocuments = () => {
-        if (!validateForm()) {
+    const handleSaveDocuments = async () => {
+        if (!validateForm() || saving || saved) {
             return;
         }
 
-        // El envio final del registro se conecta en la siguiente etapa
+        setSaving(true);
+        setErrors((previous) => ({ ...previous, form: null }));
+
+        try {
+            const driverRef = doc(collection(db, 'drivers'));
+
+            await setDoc(driverRef, {
+                personalData,
+                vehicleData,
+                documentsData,
+                status: 'pending',
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+            });
+
+            updateDocumentsData({ driverId: driverRef.id });
+            setSaved(true);
+        } catch (error) {
+            setErrors((previous) => ({
+                ...previous,
+                form: 'No se pudo enviar el registro. Revisa tu conexión e inténtalo de nuevo.',
+            }));
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.content}
-            showsVerticalScrollIndicator={false}
-        >
+        <FormScreen scrollRef={scrollRef}>
             <Text style={styles.title}>Documentación</Text>
 
             <Text style={styles.subtitle}>
@@ -198,15 +255,15 @@ export default function DocumentsScreen() {
 
             {/* Licencia de conducción */}
             <View style={styles.documentCard}>
-                <Text style={styles.documentTitle}>
+                <FieldLabel icon="id-card-outline" style={styles.documentTitle}>
                     Licencia de conducción
-                </Text>
+                </FieldLabel>
 
                 <Text style={styles.documentDescription}>
                     Ingresa el número de tu licencia y adjunta una fotografía.
                 </Text>
 
-                <Text style={styles.inputLabel}>Número de licencia</Text>
+                <FieldLabel icon="barcode-outline">Número de licencia</FieldLabel>
 
                 <TextInput
                     style={[
@@ -224,7 +281,7 @@ export default function DocumentsScreen() {
                 )}
 
                 <TouchableOpacity
-                    style={styles.photoButton}
+                    style={[styles.photoButton, { height: photoHeight }]}
                     onPress={() => pickDocumentPhoto('licensePhoto')}
                 >
                     {documentsData.licensePhoto ? (
@@ -234,7 +291,7 @@ export default function DocumentsScreen() {
                         />
                     ) : (
                         <View style={styles.photoPlaceholder}>
-                            <Text style={styles.photoIcon}>📷</Text>
+                            <Ionicons name="camera-outline" size={28} color="#6B7280" />
                             <Text style={styles.photoText}>Subir licencia</Text>
                         </View>
                     )}
@@ -244,7 +301,7 @@ export default function DocumentsScreen() {
                     <Text style={styles.errorText}>{errors.licensePhoto}</Text>
                 )}
 
-                <Text style={styles.inputLabel}>Fecha de vencimiento</Text>
+                <FieldLabel icon="calendar-outline">Fecha de vencimiento</FieldLabel>
 
                 <TextInput
                     style={[
@@ -264,6 +321,7 @@ export default function DocumentsScreen() {
 
             {/* SOAT */}
             {renderDocument(
+                'shield-checkmark-outline',
                 'SOAT',
                 'Sube una fotografía del Seguro Obligatorio de Accidentes de Tránsito.',
                 'soatPhoto',
@@ -272,6 +330,7 @@ export default function DocumentsScreen() {
 
             {/* Revisión técnico-mecánica */}
             {renderDocument(
+                'construct-outline',
                 'Revisión técnico-mecánica',
                 'Adjunta el documento de la revisión técnico-mecánica.',
                 'techPhoto',
@@ -280,7 +339,9 @@ export default function DocumentsScreen() {
 
             {/* Mercado Pago */}
             <View style={styles.documentCard}>
-                <Text style={styles.documentTitle}>Mercado Pago</Text>
+                <FieldLabel icon="wallet-outline" style={styles.documentTitle}>
+                    Mercado Pago
+                </FieldLabel>
 
                 <Text style={styles.documentDescription}>
                     Ingresa el correo asociado a tu cuenta de Mercado Pago.
@@ -295,6 +356,8 @@ export default function DocumentsScreen() {
                     placeholderTextColor="#999"
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    autoCorrect={false}
+                    onFocus={scrollToEnd}
                     value={documentsData.mercadoPagoEmail}
                     onChangeText={(value) =>
                         updateField('mercadoPagoEmail', value)
@@ -340,28 +403,40 @@ export default function DocumentsScreen() {
                 </Text>
             )}
 
+            {errors.form && (
+                <Text style={styles.errorText}>{errors.form}</Text>
+            )}
+
+            {saved && (
+                <Text style={styles.successText}>
+                    Registro enviado. Tu cuenta quedó pendiente de aprobación.
+                </Text>
+            )}
+
+            {!registrationComplete && (
+                <Text style={styles.helperText}>
+                    Completa las pestañas 1 y 2 para poder enviar tu registro.
+                </Text>
+            )}
+
             {/* Botón guardar */}
             <TouchableOpacity
-                style={styles.saveButton}
+                style={[
+                    styles.saveButton,
+                    (!registrationComplete || saving || saved) && styles.saveButtonDisabled,
+                ]}
                 onPress={handleSaveDocuments}
+                disabled={!registrationComplete || saving || saved}
             >
                 <Text style={styles.saveButtonText}>
-                    Finalizar registro
+                    {saving ? 'Enviando...' : 'Finalizar registro'}
                 </Text>
             </TouchableOpacity>
-        </ScrollView>
+        </FormScreen>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    content: {
-        padding: 20,
-        paddingBottom: 40,
-    },
     title: {
         fontSize: 24,
         fontWeight: '800',
@@ -387,12 +462,6 @@ const styles = StyleSheet.create({
         color: '#6B7280',
         marginBottom: 12,
         lineHeight: 17,
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#374151',
-        marginBottom: 6,
     },
     input: {
         backgroundColor: '#F9FAFB',
@@ -431,9 +500,6 @@ const styles = StyleSheet.create({
     },
     photoPlaceholder: {
         alignItems: 'center',
-    },
-    photoIcon: {
-        fontSize: 28,
     },
     photoText: {
         fontSize: 11,
@@ -487,5 +553,20 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
+    },
+    saveButtonDisabled: {
+        backgroundColor: '#9CA3AF',
+    },
+    helperText: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginTop: 4,
+    },
+    successText: {
+        fontSize: 13,
+        color: '#16A34A',
+        fontWeight: '600',
+        marginTop: 12,
+        textAlign: 'center',
     },
 });

@@ -40,6 +40,7 @@ export const RegistrationProvider = ({ children }) => {
         techExpiry: '',
         mercadoPagoEmail: '',
         acceptedTerms: false,
+        driverId: null,
     });
 
     // Actualizar información personal
@@ -100,6 +101,7 @@ export const RegistrationProvider = ({ children }) => {
             techExpiry: '',
             mercadoPagoEmail: '',
             acceptedTerms: false,
+            driverId: null,
         });
     };
 

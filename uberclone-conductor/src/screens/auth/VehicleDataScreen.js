@@ -1,9 +1,13 @@
 //captura de los datos del vehiculo
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { CATEGORY_OPTIONS, COLOR_OPTIONS } from '../../constants/options';
 import { isValidColombianPlate, isValidVehicleYear } from '../../utils/validators';
+import { useRegistration } from '../../context/DriverRegistrationContext';
+import FormScreen, { useScrollToEnd } from '../../components/FormScreen';
+import FieldLabel from '../../components/FieldLabel';
 
 export default function VehicleDataScreen({ navigation }) {
     //estado de la aplicacion
@@ -18,6 +22,16 @@ export default function VehicleDataScreen({ navigation }) {
 
     //Estado de errores
     const [errors, setErrors] = useState({});
+
+    const { updateVehicleData } = useRegistration();
+
+    // Referencia al scroll para acercar los campos que quedan al final
+    const scrollRef = useRef(null);
+    const scrollToEnd = useScrollToEnd(scrollRef);
+
+    // La foto del vehiculo se adapta al ancho real de la pantalla
+    const { width } = useWindowDimensions();
+    const photoHeight = Math.min(190, Math.round(width * 0.5));
 
     //funcion para escoger la foto del vehiculo
     const handlePickVehiclePhoto = async () => {
@@ -116,17 +130,23 @@ export default function VehicleDataScreen({ navigation }) {
     //boton para guardar los datos del vehiculo
     const handleSaveVehicleData = () => {
         if (validateForm()) {
+            updateVehicleData({
+                category,
+                plate,
+                brand,
+                model,
+                year,
+                color,
+                passengerCapacity,
+                vehiclePhoto,
+            });
             navigation.navigate('Documents');
         }
     };
 
     //Renderizado de la interfaz de usuario
     return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.contentContainer}
-            keyboardShouldPersistTaps="handled"
-        >
+        <FormScreen scrollRef={scrollRef}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Datos del Vehículo</Text>
                 <Text style={styles.headerSubtitle}>
@@ -136,7 +156,7 @@ export default function VehicleDataScreen({ navigation }) {
 
             {/* Categoría */}
             <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Categoría *</Text>
+                <FieldLabel icon="car-outline">Categoría *</FieldLabel>
                 <View style={styles.optionsRow}>
                     {CATEGORY_OPTIONS.map((opt) => (
                         <TouchableOpacity
@@ -168,7 +188,7 @@ export default function VehicleDataScreen({ navigation }) {
 
             {/* Placa */}
             <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Placa *</Text>
+                <FieldLabel icon="pricetag-outline">Placa *</FieldLabel>
                 <TextInput
                     style={[styles.input, errors.plate && styles.inputError]}
                     placeholder="ABC123"
@@ -185,7 +205,7 @@ export default function VehicleDataScreen({ navigation }) {
 
             {/* Marca */}
             <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Marca *</Text>
+                <FieldLabel icon="business-outline">Marca *</FieldLabel>
                 <TextInput
                     style={[styles.input, errors.brand && styles.inputError]}
                     placeholder="Ej: Toyota"
@@ -202,7 +222,7 @@ export default function VehicleDataScreen({ navigation }) {
 
             {/* Modelo */}
             <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Modelo *</Text>
+                <FieldLabel icon="cube-outline">Modelo *</FieldLabel>
                 <TextInput
                     style={[styles.input, errors.model && styles.inputError]}
                     placeholder="Ej: Corolla"
@@ -219,7 +239,7 @@ export default function VehicleDataScreen({ navigation }) {
 
             {/* Año */}
             <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Año *</Text>
+                <FieldLabel icon="calendar-outline">Año *</FieldLabel>
                 <TextInput
                     style={[styles.input, errors.year && styles.inputError]}
                     placeholder="Ej: 2020"
@@ -238,7 +258,7 @@ export default function VehicleDataScreen({ navigation }) {
 
             {/* Color */}
             <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Color *</Text>
+                <FieldLabel icon="color-palette-outline">Color *</FieldLabel>
                 <View style={styles.optionsRow}>
                     {COLOR_OPTIONS.map((opt) => (
                         <TouchableOpacity
@@ -270,7 +290,7 @@ export default function VehicleDataScreen({ navigation }) {
 
             {/* Capacidad de pasajeros */}
             <View style={styles.fieldGroup}>
-                <Text style={styles.label}>Capacidad de pasajeros *</Text>
+                <FieldLabel icon="people-outline">Capacidad de pasajeros *</FieldLabel>
                 <TextInput
                     style={[styles.input, errors.passengerCapacity && styles.inputError]}
                     placeholder="4"
@@ -278,6 +298,7 @@ export default function VehicleDataScreen({ navigation }) {
                     value={passengerCapacity}
                     keyboardType="numeric"
                     maxLength={2}
+                    onFocus={scrollToEnd}
                     onChangeText={(val) => {
                         setPassengerCapacity(val);
                         if (errors.passengerCapacity) {
@@ -296,7 +317,7 @@ export default function VehicleDataScreen({ navigation }) {
             {/* Foto del vehículo */}
             <View style={styles.photoSection}>
                 <TouchableOpacity
-                    style={styles.photoContainer}
+                    style={[styles.photoContainer, { height: photoHeight }]}
                     onPress={handlePickVehiclePhoto}
                     activeOpacity={0.8}
                 >
@@ -304,7 +325,7 @@ export default function VehicleDataScreen({ navigation }) {
                         <Image source={{ uri: vehiclePhoto }} style={styles.photoPreview} />
                     ) : (
                         <View style={styles.photoPlaceholder}>
-                            <Text style={styles.photoPlaceholderText}>📷</Text>
+                            <Ionicons name="camera-outline" size={28} color="#6B7280" />
                             <Text style={styles.photoSubtext}>Subir foto</Text>
                         </View>
                     )}
@@ -322,19 +343,11 @@ export default function VehicleDataScreen({ navigation }) {
             >
                 <Text style={styles.continueButtonText}>Continuar a Documentos →</Text>
             </TouchableOpacity>
-        </ScrollView>
+        </FormScreen>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    contentContainer: {
-        padding: 20,
-        paddingBottom: 40,
-    },
     header: {
         marginBottom: 20,
     },
@@ -350,12 +363,6 @@ const styles = StyleSheet.create({
     },
     fieldGroup: {
         marginBottom: 16,
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#374151',
-        marginBottom: 6,
     },
     input: {
         backgroundColor: '#F9FAFB',
@@ -430,9 +437,6 @@ const styles = StyleSheet.create({
     },
     photoPlaceholder: {
         alignItems: 'center',
-    },
-    photoPlaceholderText: {
-        fontSize: 28,
     },
     photoSubtext: {
         fontSize: 11,

@@ -1,10 +1,14 @@
 // AI-assisted: see docs/AI_LOG.md #4
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { GENDER_OPTIONS } from '../../constants/options';
 import { isValidFullName, isValidColombianId, isValidPhone, isValidEmail, validateAge } from '../../utils/validators';
+import { useRegistration } from '../../context/DriverRegistrationContext';
+import FormScreen, { useScrollToEnd } from '../../components/FormScreen';
+import FieldLabel from '../../components/FieldLabel';
 
 
 
@@ -19,6 +23,16 @@ export default function PersonalDataScreen({ navigation }) {
   const [language, setLanguage] = useState('es');
 
   const [errors, setErrors] = useState({});
+
+  const { updatePersonalData } = useRegistration();
+
+  // Referencia al scroll para acercar los campos que quedan al final
+  const scrollRef = useRef(null);
+  const scrollToEnd = useScrollToEnd(scrollRef);
+
+  // La foto se adapta al ancho real de la pantalla
+  const { width } = useWindowDimensions();
+  const photoSize = Math.min(112, Math.round(width * 0.3));
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -100,16 +114,22 @@ export default function PersonalDataScreen({ navigation }) {
 
   const handleNext = () => {
     if (validateForm()) {
+      updatePersonalData({
+        profilePhoto,
+        fullName,
+        idNumber,
+        phone,
+        birthDate,
+        gender,
+        email,
+        language,
+      });
       navigation.navigate('VehicleData');
     }
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      keyboardShouldPersistTaps="handled"
-    >
+    <FormScreen scrollRef={scrollRef}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Datos Personales</Text>
         <Text style={styles.headerSubtitle}>
@@ -120,7 +140,10 @@ export default function PersonalDataScreen({ navigation }) {
       {/* Profile Photo Section */}
       <View style={styles.photoSection}>
         <TouchableOpacity
-          style={styles.photoContainer}
+          style={[
+            styles.photoContainer,
+            { width: photoSize, height: photoSize, borderRadius: photoSize / 2 },
+          ]}
           onPress={handlePickImage}
           activeOpacity={0.8}
         >
@@ -128,7 +151,7 @@ export default function PersonalDataScreen({ navigation }) {
             <Image source={{ uri: profilePhoto }} style={styles.photoPreview} />
           ) : (
             <View style={styles.photoPlaceholder}>
-              <Text style={styles.photoPlaceholderText}>📷</Text>
+              <Ionicons name="camera-outline" size={28} color="#6B7280" />
               <Text style={styles.photoSubtext}>Subir foto</Text>
             </View>
           )}
@@ -140,7 +163,7 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Full Name Field */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Nombre Completo *</Text>
+        <FieldLabel icon="person-outline">Nombre Completo *</FieldLabel>
         <TextInput
           style={[styles.input, errors.fullName && styles.inputError]}
           placeholder="Ej: Carlos Alberto Gómez"
@@ -157,7 +180,7 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Identity Document Field */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Documento de Identidad (C.C.) *</Text>
+        <FieldLabel icon="card-outline">Documento de Identidad (C.C.) *</FieldLabel>
         <TextInput
           style={[styles.input, errors.idNumber && styles.inputError]}
           placeholder="Ej: 1020304050"
@@ -175,7 +198,7 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Phone Number Field */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Número de Celular *</Text>
+        <FieldLabel icon="call-outline">Número de Celular *</FieldLabel>
         <TextInput
           style={[styles.input, errors.phone && styles.inputError]}
           placeholder="Ej: 3001234567"
@@ -193,7 +216,7 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Birth Date Field */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Fecha de Nacimiento</Text>
+        <FieldLabel icon="calendar-outline">Fecha de Nacimiento</FieldLabel>
         <TextInput
           style={[styles.input, errors.birthDate && styles.inputError]}
           placeholder="Ej: 1995-08-24"
@@ -211,7 +234,7 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Gender Selection */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Género *</Text>
+        <FieldLabel icon="male-female-outline">Género *</FieldLabel>
         <View style={styles.optionsRow}>
           {GENDER_OPTIONS.map((opt) => (
             <TouchableOpacity
@@ -241,14 +264,16 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Email Field */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Correo Electrónico *</Text>
+        <FieldLabel icon="mail-outline">Correo Electrónico *</FieldLabel>
         <TextInput
           style={[styles.input, errors.email && styles.inputError]}
           placeholder="conductor@correo.com"
           placeholderTextColor="#9CA3AF"
           keyboardType="email-address"
           autoCapitalize="none"
+          autoCorrect={false}
           value={email}
+          onFocus={scrollToEnd}
           onChangeText={(val) => {
             setEmail(val);
             if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
@@ -259,7 +284,7 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Language Preference Section */}
       <View style={styles.fieldGroup}>
-        <Text style={styles.label}>Idioma Preferido (AsyncStorage)</Text>
+        <FieldLabel icon="language-outline">Idioma Preferido (AsyncStorage)</FieldLabel>
         <View style={styles.optionsRow}>
           <TouchableOpacity
             style={[
@@ -304,20 +329,12 @@ export default function PersonalDataScreen({ navigation }) {
       >
         <Text style={styles.continueButtonText}>Continuar a Datos del Vehículo →</Text>
       </TouchableOpacity>
-    </ScrollView>
+    </FormScreen>
   );
 }
 
 // BLOCK 5: Visual Styling (StyleSheet)
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  contentContainer: {
-    padding: 20,
-    paddingBottom: 40,
-  },
   header: {
     marginBottom: 20,
   },
@@ -353,9 +370,6 @@ const styles = StyleSheet.create({
   photoPlaceholder: {
     alignItems: 'center',
   },
-  photoPlaceholderText: {
-    fontSize: 28,
-  },
   photoSubtext: {
     fontSize: 11,
     color: '#6B7280',
@@ -364,12 +378,6 @@ const styles = StyleSheet.create({
   },
   fieldGroup: {
     marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#374151',
-    marginBottom: 6,
   },
   input: {
     backgroundColor: '#F9FAFB',
