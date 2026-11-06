@@ -74,6 +74,22 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "feat(auth): implement PersonalDataScreen layout and inline validations"
 - **Resumen de la respuesta:** Se construyó `PersonalDataScreen.js` y las constantes en `options.js`, aplicando validaciones en línea bajo cada campo (nombre con regex, documento, celular de 10 dígitos, fecha +18 años, formato correo e idioma) sin usar `Alert`.
 - **Qué se usó / modificó / descartó:** Se usó `expo-image-picker` para foto de perfil y cálculo de edad; se descartó `Alert` respetando la regla estricta de validación visual en línea.
-- **Archivos y commit:** `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/constants/options.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/constants/options.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `c9157c8`
 - **Verificación:** Validación interactiva en Expo Go con feedback inmediato bajo cada input al tocar los campos.
 - **Aprendizaje:** Manejo de estado granular de errores por campo (`errors[field]`) en React Native para garantizar una UX sin interrupciones modales.
+
+---
+
+### Entrada #5 (Commit 5/32)
+- **Fecha:** 2026-11-02
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar la Pestaña 2 (Datos del Vehículo) con selector de categoría, formateo de placa colombiana en mayúsculas (ABC123), validaciones de año, regla condicional de capacidad de pasajeros (mínimo 6 para XL) y carga de foto del vehículo.
+- **Prompt:** "feat(auth): implement Tab 2 vehicle data screen layout and inline validations"
+- **Resumen de la respuesta:** Se creó `VehicleDataScreen.js` con campos de categoría, placa con auto-uppercase, marca, modelo, año (1990-actual), selector de color, capacidad condicional y foto de vehículo con `expo-image-picker`. Se agregaron opciones en `options.js` y se integró en `RegisterTabsNavigator.js`.
+- **Qué se usó / modificó / descartó:** Se implementó validación en línea de placa mediante regex colombiano `^[A-Z]{3}\d{3}$` y lógica condicional de capacidad según la categoría seleccionada; se descartó `Alert` para mantener coherencia visual.
+- **Archivos y commit:** `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/constants/options.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js` — `[PENDIENTE_HASH]`
+- **Verificación:** Validación visual en Expo Go del paso de pestaña, auto-formateo de placa y mensajes en línea al cambiar de categoría.
+- **Aprendizaje:** Implementación de validaciones dependientes del estado cruzado (categoría vs capacidad de pasajeros) en formularios reactivos.
+
+

@@ -1,0 +1,455 @@
+//captura de los datos del vehiculo
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image, } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { CATEGORY_OPTIONS, COLOR_OPTIONS } from '../../constants/options';
+import { isValidColombianPlate, isValidVehicleYear } from '../../utils/validators';
+
+export default function VehicleDataScreen({ navigation }) {
+    //estado de la aplicacion
+    const [category, setCategory] = useState('economy');
+    const [plate, setPlate] = useState('');
+    const [brand, setBrand] = useState('');
+    const [model, setModel] = useState('');
+    const [year, setYear] = useState('');
+    const [color, setColor] = useState('');
+    const [passengerCapacity, setPassengerCapacity] = useState('4');
+    const [vehiclePhoto, setVehiclePhoto] = useState(null);
+
+    //Estado de errores
+    const [errors, setErrors] = useState({});
+
+    //funcion para escoger la foto del vehiculo
+    const handlePickVehiclePhoto = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            setErrors((prev) => ({
+                ...prev,
+                vehiclePhoto: 'Se requiere permiso para acceder a la galería.',
+            }));
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [16, 9],
+            quality: 0.8,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+            setVehiclePhoto(result.assets[0].uri);
+            setErrors((prev) => ({ ...prev, vehiclePhoto: null }));
+        }
+    };
+
+    //formato placas colombianas
+    const handlePlateChange = (val) => {
+        const uppercaseVal = val.toUpperCase().trim();
+        setPlate(uppercaseVal);
+
+        if (errors.plate) {
+            if (isValidColombianPlate(uppercaseVal)) {
+                setErrors((prev) => ({ ...prev, plate: null }));
+            }
+        }
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+
+        //validacion estrictas sobre la categoria
+        if (!category) {
+            newErrors.category = 'Selecciona una categoría.';
+        }
+        //validacion de la placa colombiana
+        if (!plate) {
+            newErrors.plate = 'La placa es obligatoria.';
+        } else if (!isValidColombianPlate(plate)) {
+            newErrors.plate = 'Formato inválido. Ejemplo: ABC123';
+        }
+
+        //validacion de la marca obligatoria
+        if (!brand) {
+            newErrors.brand = 'La marca es obligatoria.';
+        } else if (brand.length > 30) {
+            newErrors.brand = 'Máximo 30 caracteres.';
+        }
+
+        //validacion del modelo obligatorio
+        if (!model) {
+            newErrors.model = 'El modelo es obligatorio.';
+        } else if (model.length > 30) {
+            newErrors.model = 'Máximo 30 caracteres.';
+        }
+        //validacion de año obligatorio
+        if (!isValidVehicleYear(year)) {
+            newErrors.year = 'Año inválido (entre 1990 y el actual).';
+        }
+        //Validacion de color obligatorio
+        if (!color) {
+            newErrors.color = 'El color es obligatorio.';
+        }
+        //Capacidad minima y maxima segun la categoria
+        const passengerMin = category === 'xl' ? 6 : 4;
+        const passengerMax = category === 'xl' ? 8 : 5;
+        const capacityValue = Number(passengerCapacity);
+
+        if (
+            !passengerCapacity ||
+            !Number.isInteger(capacityValue) ||
+            capacityValue < passengerMin ||
+            capacityValue > passengerMax
+        ) {
+            newErrors.passengerCapacity = `La capacidad debe estar entre ${passengerMin} y ${passengerMax} pasajeros.`;
+        }
+        //no permite continuar sin la foto del vehiculo
+        if (!vehiclePhoto) {
+            newErrors.vehiclePhoto = 'La foto del vehículo es obligatoria.';
+        }
+
+        setErrors(newErrors);
+
+        return Object.keys(newErrors).length === 0;
+    }
+
+    //boton para guardar los datos del vehiculo
+    const handleSaveVehicleData = () => {
+        if (validateForm()) {
+            navigation.navigate('Documents');
+        }
+    };
+
+    //Renderizado de la interfaz de usuario
+    return (
+        <ScrollView
+            style={styles.container}
+            contentContainerStyle={styles.contentContainer}
+            keyboardShouldPersistTaps="handled"
+        >
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Datos del Vehículo</Text>
+                <Text style={styles.headerSubtitle}>
+                    Paso 2 de 3 — Información del vehículo
+                </Text>
+            </View>
+
+            {/* Categoría */}
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Categoría *</Text>
+                <View style={styles.optionsRow}>
+                    {CATEGORY_OPTIONS.map((opt) => (
+                        <TouchableOpacity
+                            key={opt.value}
+                            style={[
+                                styles.optionChip,
+                                category === opt.value && styles.optionChipSelected,
+                            ]}
+                            onPress={() => {
+                                setCategory(opt.value);
+                                if (errors.category) {
+                                    setErrors((prev) => ({ ...prev, category: null }));
+                                }
+                            }}
+                        >
+                            <Text
+                                style={[
+                                    styles.optionChipText,
+                                    category === opt.value && styles.optionChipTextSelected,
+                                ]}
+                            >
+                                {opt.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+                {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
+            </View>
+
+            {/* Placa */}
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Placa *</Text>
+                <TextInput
+                    style={[styles.input, errors.plate && styles.inputError]}
+                    placeholder="ABC123"
+                    placeholderTextColor="#9CA3AF"
+                    value={plate}
+                    onChangeText={handlePlateChange}
+                    maxLength={6}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                />
+                <Text style={styles.helperText}>3 letras y 3 números (ej: ABC123).</Text>
+                {errors.plate && <Text style={styles.errorText}>{errors.plate}</Text>}
+            </View>
+
+            {/* Marca */}
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Marca *</Text>
+                <TextInput
+                    style={[styles.input, errors.brand && styles.inputError]}
+                    placeholder="Ej: Toyota"
+                    placeholderTextColor="#9CA3AF"
+                    value={brand}
+                    maxLength={30}
+                    onChangeText={(val) => {
+                        setBrand(val);
+                        if (errors.brand) setErrors((prev) => ({ ...prev, brand: null }));
+                    }}
+                />
+                {errors.brand && <Text style={styles.errorText}>{errors.brand}</Text>}
+            </View>
+
+            {/* Modelo */}
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Modelo *</Text>
+                <TextInput
+                    style={[styles.input, errors.model && styles.inputError]}
+                    placeholder="Ej: Corolla"
+                    placeholderTextColor="#9CA3AF"
+                    value={model}
+                    maxLength={30}
+                    onChangeText={(val) => {
+                        setModel(val);
+                        if (errors.model) setErrors((prev) => ({ ...prev, model: null }));
+                    }}
+                />
+                {errors.model && <Text style={styles.errorText}>{errors.model}</Text>}
+            </View>
+
+            {/* Año */}
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Año *</Text>
+                <TextInput
+                    style={[styles.input, errors.year && styles.inputError]}
+                    placeholder="Ej: 2020"
+                    placeholderTextColor="#9CA3AF"
+                    value={year}
+                    keyboardType="numeric"
+                    maxLength={4}
+                    onChangeText={(val) => {
+                        setYear(val);
+                        if (errors.year) setErrors((prev) => ({ ...prev, year: null }));
+                    }}
+                />
+                <Text style={styles.helperText}>Entre 1990 y el año actual.</Text>
+                {errors.year && <Text style={styles.errorText}>{errors.year}</Text>}
+            </View>
+
+            {/* Color */}
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Color *</Text>
+                <View style={styles.optionsRow}>
+                    {COLOR_OPTIONS.map((opt) => (
+                        <TouchableOpacity
+                            key={opt.value}
+                            style={[
+                                styles.optionChip,
+                                color === opt.value && styles.optionChipSelected,
+                            ]}
+                            onPress={() => {
+                                setColor(opt.value);
+                                if (errors.color) {
+                                    setErrors((prev) => ({ ...prev, color: null }));
+                                }
+                            }}
+                        >
+                            <Text
+                                style={[
+                                    styles.optionChipText,
+                                    color === opt.value && styles.optionChipTextSelected,
+                                ]}
+                            >
+                                {opt.label}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+                {errors.color && <Text style={styles.errorText}>{errors.color}</Text>}
+            </View>
+
+            {/* Capacidad de pasajeros */}
+            <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Capacidad de pasajeros *</Text>
+                <TextInput
+                    style={[styles.input, errors.passengerCapacity && styles.inputError]}
+                    placeholder="4"
+                    placeholderTextColor="#9CA3AF"
+                    value={passengerCapacity}
+                    keyboardType="numeric"
+                    maxLength={2}
+                    onChangeText={(val) => {
+                        setPassengerCapacity(val);
+                        if (errors.passengerCapacity) {
+                            setErrors((prev) => ({ ...prev, passengerCapacity: null }));
+                        }
+                    }}
+                />
+                <Text style={styles.helperText}>
+                    XL: entre 6 y 8 pasajeros. Otras categorías: entre 4 y 5.
+                </Text>
+                {errors.passengerCapacity && (
+                    <Text style={styles.errorText}>{errors.passengerCapacity}</Text>
+                )}
+            </View>
+
+            {/* Foto del vehículo */}
+            <View style={styles.photoSection}>
+                <TouchableOpacity
+                    style={styles.photoContainer}
+                    onPress={handlePickVehiclePhoto}
+                    activeOpacity={0.8}
+                >
+                    {vehiclePhoto ? (
+                        <Image source={{ uri: vehiclePhoto }} style={styles.photoPreview} />
+                    ) : (
+                        <View style={styles.photoPlaceholder}>
+                            <Text style={styles.photoPlaceholderText}>📷</Text>
+                            <Text style={styles.photoSubtext}>Subir foto</Text>
+                        </View>
+                    )}
+                </TouchableOpacity>
+                <Text style={styles.helperText}>Foto donde se vea la placa.</Text>
+                {errors.vehiclePhoto && (
+                    <Text style={styles.errorText}>{errors.vehiclePhoto}</Text>
+                )}
+            </View>
+
+            <TouchableOpacity
+                style={styles.continueButton}
+                onPress={handleSaveVehicleData}
+                activeOpacity={0.8}
+            >
+                <Text style={styles.continueButtonText}>Continuar a Documentos →</Text>
+            </TouchableOpacity>
+        </ScrollView>
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: '#FFFFFF',
+    },
+    contentContainer: {
+        padding: 20,
+        paddingBottom: 40,
+    },
+    header: {
+        marginBottom: 20,
+    },
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#111827',
+    },
+    headerSubtitle: {
+        fontSize: 14,
+        color: '#6B7280',
+        marginTop: 4,
+    },
+    fieldGroup: {
+        marginBottom: 16,
+    },
+    label: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#374151',
+        marginBottom: 6,
+    },
+    input: {
+        backgroundColor: '#F9FAFB',
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        borderRadius: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        fontSize: 15,
+        color: '#111827',
+    },
+    inputError: {
+        borderColor: '#EF4444',
+        backgroundColor: '#FEF2F2',
+    },
+    helperText: {
+        fontSize: 12,
+        color: '#6B7280',
+        marginTop: 4,
+    },
+    errorText: {
+        fontSize: 12,
+        color: '#EF4444',
+        fontWeight: '600',
+        marginTop: 4,
+    },
+    optionsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 4,
+    },
+    optionChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 20,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+    },
+    optionChipSelected: {
+        backgroundColor: '#000000',
+        borderColor: '#000000',
+    },
+    optionChipText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#374151',
+    },
+    optionChipTextSelected: {
+        color: '#FFFFFF',
+    },
+    photoSection: {
+        alignItems: 'center',
+        marginBottom: 24,
+    },
+    photoContainer: {
+        width: '100%',
+        height: 160,
+        borderRadius: 12,
+        backgroundColor: '#F3F4F6',
+        borderWidth: 2,
+        borderColor: '#E5E7EB',
+        borderStyle: 'dashed',
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    photoPreview: {
+        width: '100%',
+        height: '100%',
+    },
+    photoPlaceholder: {
+        alignItems: 'center',
+    },
+    photoPlaceholderText: {
+        fontSize: 28,
+    },
+    photoSubtext: {
+        fontSize: 11,
+        color: '#6B7280',
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    continueButton: {
+        backgroundColor: '#000000',
+        paddingVertical: 15,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginTop: 16,
+    },
+    continueButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+});

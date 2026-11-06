@@ -1,14 +1,14 @@
-// AI-assisted: see docs/AI_LOG.md #3
+// AI-assisted: see docs/AI_LOG.md #5
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
 import PersonalDataScreen from '../screens/auth/PersonalDataScreen';
+import VehicleDataScreen from '../screens/auth/VehicleDataScreen';
 const Tab = createBottomTabNavigator();
 
 /**
- * Placeholder screen for Step 1: Personal Data.
- * Will be fully implemented in Commit #9 / #10.
+ * Placeholder para el Paso 1: Datos Personales.
  */
 function PersonalDataPlaceholder({ navigation }) {
   return (
@@ -32,8 +32,7 @@ function PersonalDataPlaceholder({ navigation }) {
 }
 
 /**
- * Placeholder screen for Step 2: Vehicle Data.
- * Will be fully implemented in Commit #11 / #12.
+ * Placeholder para el Paso 2: Datos del Vehículo.
  */
 function VehicleDataPlaceholder({ navigation }) {
   return (
@@ -57,8 +56,7 @@ function VehicleDataPlaceholder({ navigation }) {
 }
 
 /**
- * Placeholder screen for Step 3: Documents and Payments.
- * Will be fully implemented in Commit #13 / #15.
+ * Placeholder para el Paso 3: Documentación y Pagos.
  */
 function DocumentsPlaceholder({ navigation }) {
   return (
@@ -125,7 +123,7 @@ export default function RegisterTabsNavigator() {
       />
       <Tab.Screen
         name="VehicleData"
-        component={VehicleDataPlaceholder}
+        component={VehicleDataScreen}
         options={{
           title: 'Vehículo del Conductor',
           tabBarLabel: '2. Vehículo',
