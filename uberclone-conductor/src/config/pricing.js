@@ -1,14 +1,14 @@
 // AI-assisted: see docs/AI_LOG.md #2
 export const PRICING_CONFIG = {
-  baseFare: 3500,
-  perKm: 1200,
-  perMin: 250,
-  minFare: 6000,
-  commissionRate: 0.2,
+  baseFare: 3500, // tarifa base
+  perKm: 1200, // costo por kilonetro
+  perMin: 250, // costo por minuto
+  minFare: 6000, // tarifa minima
+  commissionRate: 0.2, // comision de uber
   multipliers: {
-    economy: 1.0,
-    xl: 1.4,
-    premium: 1.8,
+    economy: 1.0, // tarifa base
+    xl: 1.4, // tarifa economica
+    premium: 1.8, // tarifa premium
   },
 };
 

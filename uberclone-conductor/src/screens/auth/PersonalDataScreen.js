@@ -4,33 +4,28 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Image,
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GENDER_OPTIONS } from '../../constants/options';
+import { isValidFullName, isValidColombianId, isValidPhone, isValidEmail, validateAge } from '../../utils/validators';
+
 
 
 export default function PersonalDataScreen({ navigation }) {
-  // BLOCK 1: Component State for Form Fields
-  // We use useState so React re-renders when values change.
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [fullName, setFullName] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [phone, setPhone] = useState('');
-  const [birthDate, setBirthDate] = useState(''); // Format: YYYY-MM-DD
+  const [birthDate, setBirthDate] = useState('');
   const [gender, setGender] = useState('');
   const [email, setEmail] = useState('');
   const [language, setLanguage] = useState('es');
 
-  // BLOCK 2: Inline Error State (Zero native Alert modals permitted)
-  // An object containing field-specific error messages.
   const [errors, setErrors] = useState({});
 
-  // BLOCK 3: Helper & Validation Functions
-
-  // Pick or take a photo using expo-image-picker
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       setErrors((prev) => ({
         ...prev,
-        profilePhoto: 'Permission is required to access your gallery.',
+        profilePhoto: 'Se requiere permiso para acceder a la galería.',
       }));
       return;
     }
@@ -44,111 +39,71 @@ export default function PersonalDataScreen({ navigation }) {
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setProfilePhoto(result.assets[0].uri);
-      // Clear the photo error if it was previously set
       setErrors((prev) => ({ ...prev, profilePhoto: null }));
     }
   };
 
-  // Validate that driver is at least 18 years old today
-  const validateAge = (dateString) => {
-    const regex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!regex.test(dateString)) {
-      return 'Use YYYY-MM-DD format (example: 2000-05-15).';
-    }
-
-    const birth = new Date(dateString);
-    if (isNaN(birth.getTime())) {
-      return 'Invalid date.';
-    }
-
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
-
-    if (age < 18) {
-      return `Driver must be at least 18 years old (current: ${age} years).`;
-    }
-    return null;
-  };
-
-  // Validate all fields before advancing to Step 2
   const validateForm = () => {
     const newErrors = {};
 
     if (!profilePhoto) {
-      newErrors.profilePhoto = 'Profile photo is required.';
+      newErrors.profilePhoto = 'La foto de perfil es obligatoria.';
     }
 
-    // Name: letters and spaces only, max 50 characters
-    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]{1,50}$/;
     if (!fullName.trim()) {
-      newErrors.fullName = 'Full name is required.';
-    } else if (!nameRegex.test(fullName.trim())) {
-      newErrors.fullName = 'Only letters and spaces allowed (max 50 characters).';
+      newErrors.fullName = 'El nombre completo es obligatorio.';
+    } else if (!isValidFullName(fullName.trim())) {
+      newErrors.fullName = 'Solo se permiten letras y espacios (máximo 50 caracteres).';
     }
 
-    // ID document: 6 to 10 numeric digits
-    const idRegex = /^\d{6,10}$/;
     if (!idNumber.trim()) {
-      newErrors.idNumber = 'Identity document is required.';
-    } else if (!idRegex.test(idNumber.trim())) {
-      newErrors.idNumber = 'Must contain between 6 and 10 numeric digits.';
+      newErrors.idNumber = 'El documento de identidad es obligatorio.';
+    } else if (!isValidColombianId(idNumber.trim())) {
+      newErrors.idNumber = 'Debe contener entre 6 y 10 dígitos numéricos.';
     }
 
-    // Phone: exactly 10 digits
-    const phoneRegex = /^\d{10}$/;
     if (!phone.trim()) {
-      newErrors.phone = 'Phone number is required.';
-    } else if (!phoneRegex.test(phone.trim())) {
-      newErrors.phone = 'Phone number must have exactly 10 digits.';
+      newErrors.phone = 'El número de celular es obligatorio.';
+    } else if (!isValidPhone(phone.trim())) {
+      newErrors.phone = 'El número celular debe tener exactamente 10 dígitos.';
     }
 
-    // Birth date validation (+18 check)
     if (!birthDate.trim()) {
-      newErrors.birthDate = 'Birth date is required.';
+      newErrors.birthDate = 'La fecha de nacimiento es obligatoria.';
     } else {
       const ageError = validateAge(birthDate.trim());
       if (ageError) newErrors.birthDate = ageError;
     }
 
-    // Gender selection
     if (!gender) {
-      newErrors.gender = 'Please select your gender.';
+      newErrors.gender = 'Por favor selecciona tu género.';
     }
 
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!email.trim()) {
-      newErrors.email = 'Email address is required.';
-    } else if (!emailRegex.test(email.trim())) {
-      newErrors.email = 'Enter a valid email address.';
+      newErrors.email = 'El correo electrónico es obligatorio.';
+    } else if (!isValidEmail(email.trim())) {
+      newErrors.email = 'Ingresa un correo electrónico válido.';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Save selected language to persistent AsyncStorage
   const handleLanguageChange = async (selectedLang) => {
     setLanguage(selectedLang);
     try {
       await AsyncStorage.setItem('driver_language', selectedLang);
     } catch (e) {
-      console.warn('Error saving language preference', e);
+      console.warn('Error al guardar el lenguaje de preferencia', e);
     }
   };
 
-  // Navigate to Step 2 if all fields are 100% valid
   const handleNext = () => {
     if (validateForm()) {
       navigation.navigate('VehicleData');
     }
   };
 
-  // BLOCK 4: Screen JSX Layout
   return (
     <ScrollView
       style={styles.container}
