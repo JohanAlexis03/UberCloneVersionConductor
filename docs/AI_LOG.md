@@ -131,3 +131,29 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Archivos y commit:** `uberclone-conductor/src/components/FormScreen.js`, `uberclone-conductor/src/components/FieldLabel.js`, `uberclone-conductor/src/navigation/RegisterTabsNavigator.js`, `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js`, `uberclone-conductor/App.js` — `817a5da` (mismo commit que la entrada #7)
 - **Verificación:** Bundle de desarrollo compilado sin errores de resolución (HTTP 200) y validación de los 23 nombres de iconos contra el mapa de glifos de Ionicons.
 - **Aprendizaje:** En Android con edge-to-edge la ventana ya no se redimensiona sola, por lo que `KeyboardAvoidingView` necesita `behavior` en ambas plataformas; además, superponer la altura fija de la barra de pestañas ignora el área segura inferior del dispositivo.
+---
+
+### Entrada #9 (Commit 9/32)
+- **Fecha:** 2026-11-06
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Corregir los datos que se guardaban mal en Firestore (fechas imposibles, marcas con emojis, año y capacidad como texto), reemplazar los campos de fecha escritos a mano por un calendario nativo y guardar cada conductor con su cédula como identificador del documento.
+- **Prompt:** "Revisa la base de datos, hay demasiados bugs, no se guardó con la cédula y la fecha la necesito desde el calendario; con las fechas posteriores a hoy, si pongo 40 o 32 deja pasar; revisa bien y haz el debug en cada uno de los campos, prueba de todo"
+- **Resumen de la respuesta:** Se reescribió `validators.js` con funciones puras y una validación de fecha que compara año, mes y día del objeto `Date`, de modo que `2026-02-31` o `2026-11-40` se rechazan. Se creó `DateField` con `@react-native-community/datetimepicker` para elegir fechas desde el calendario del sistema, con fecha mínima y máxima. `DocumentsScreen` ahora guarda con `doc(db, 'drivers', personalData.idNumber)` y normaliza los textos antes de escribir.
+- **Qué se usó / modificó / descartó:** Se usó `@react-native-community/datetimepicker` (incluido en Expo Go) y `Number()` para convertir `year` y `passengerCapacity` antes de guardarlos. Se descartó seguir validando fechas con expresiones regulares solas, porque aceptan días como 40 o 31 en meses de 30 días.
+- **Archivos y commit:** `uberclone-conductor/src/utils/validators.js`, `uberclone-conductor/src/components/DateField.js`, `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js`, `uberclone-conductor/package.json` — `5005426`
+- **Verificación:** 48 pruebas sobre los validadores ejecutadas con Node (todas en verde), incluyendo los casos reportados: `1000-01-11`, marca `🔥🔥`, año `1990abc` y `1990.5`, vencimientos `2026-11-40` y `2026-40-32`. Bundle de desarrollo compilado sin errores de resolución (HTTP 200).
+- **Aprendizaje:** `new Date(2026, 1, 31)` no falla: se desborda al 3 de marzo. Para validar una fecha hay que construir el objeto y comparar si el año, el mes y el día siguen siendo los que se ingresaron. Además, un `TextInput` con teclado numérico sigue aceptando texto pegado, así que la validación debe vivir en el código y no en el teclado.
+---
+
+### Entrada #10 (Commit 9/32)
+- **Fecha:** 2026-11-06
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Dejar de guardar rutas temporales del teléfono como si fueran fotos y subir las imágenes a Cloudinary para guardar en Firestore su URL pública.
+- **Prompt:** "cx3t5rmq este es el cloudname, ya cree la cuenta lo ideal es que sea en Cloudinary"
+- **Resumen de la respuesta:** Se creó el servicio `uploadToCloudinary`, que arma un `FormData` con el archivo y el `upload_preset`, hace un POST a `https://api.cloudinary.com/v1_1/<cloud_name>/image/upload` y devuelve el `secure_url`. Las tres pestañas suben la imagen en el momento de elegirla y guardan la URL; mientras sube, el botón muestra "Subiendo..." con un `ActivityIndicator` y se deshabilita.
+- **Qué se usó / modificó / descartó:** Se usó la API REST de Cloudinary con un **unsigned upload preset**, porque una app móvil no puede guardar el API secret (cualquiera podría extraerlo del APK). Se descartó Firebase Storage porque exige habilitar facturación con tarjeta, y se descartó el SDK de Cloudinary porque es solo para servidor.
+- **Archivos y commit:** `uberclone-conductor/src/services/cloudinary.js`, `uberclone-conductor/.env.example`, `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js` — `5005426` (mismo commit que la entrada #9)
+- **Verificación:** Se confirmó contra la API real que el cloud name `cx3t5rmq` existe y que el formato de error es `{"error":{"message":"..."}}`, que es el que lee el código. Bundle de desarrollo compilado sin errores de resolución (HTTP 200) y el cloud name aparece inlined en el bundle.
+- **Aprendizaje:** La URI que devuelve `expo-image-picker` apunta a la carpeta de caché de la app (`file:///.../Library/Caches/ImagePicker/...`), no a la galería del usuario: el sistema puede borrarla y ningún otro dispositivo puede abrirla. En una app móvil el secreto de un servicio de medios nunca va en el cliente; por eso se usa un preset unsigned con permisos limitados.
