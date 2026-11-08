@@ -1,9 +1,11 @@
+// AI-assisted: see docs/AI_LOG.md #11
 import React, { useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRegistration } from '../../context/DriverRegistrationContext';
+import { useDriver } from '../../context/DriverContext';
 import { db } from '../../config/firebase';
 import { uploadToCloudinary } from '../../services/cloudinary';
 import { isValidExpiryDate, isValidLicenseNumber } from '../../utils/validators';
@@ -11,13 +13,14 @@ import FormScreen, { useScrollToEnd } from '../../components/FormScreen';
 import FieldLabel from '../../components/FieldLabel';
 import DateField from '../../components/DateField';
 
-export default function DocumentsScreen() {
+export default function DocumentsScreen({ navigation }) {
     const {
         personalData,
         vehicleData,
         documentsData,
         updateDocumentsData,
     } = useRegistration();
+    const { loginDriver } = useDriver();
 
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
@@ -277,6 +280,7 @@ export default function DocumentsScreen() {
                 updatedAt: serverTimestamp(),
             });
 
+            await loginDriver(driverId);
             updateDocumentsData({ driverId });
             setSaved(true);
         } catch (error) {
@@ -461,30 +465,42 @@ export default function DocumentsScreen() {
             )}
 
             {saved && (
-                <Text style={styles.successText}>
-                    Registro enviado. Tu cuenta quedó pendiente de aprobación.
-                </Text>
+                <View style={styles.savedCard}>
+                    <Text style={styles.successText}>
+                        ¡Registro enviado exitosamente! Tu cuenta quedó en estado pendiente de aprobación.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.profileNavButton}
+                        onPress={() => navigation.navigate('Profile')}
+                        activeOpacity={0.8}
+                    >
+                        <Ionicons name="person-outline" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                        <Text style={styles.profileNavButtonText}>Ver mi Perfil de Conductor</Text>
+                    </TouchableOpacity>
+                </View>
             )}
 
-            {!registrationComplete && (
+            {!registrationComplete && !saved && (
                 <Text style={styles.helperText}>
                     Completa las pestañas 1 y 2 para poder enviar tu registro.
                 </Text>
             )}
 
             {/* Botón guardar */}
-            <TouchableOpacity
-                style={[
-                    styles.saveButton,
-                    (!registrationComplete || saving || saved) && styles.saveButtonDisabled,
-                ]}
-                onPress={handleSaveDocuments}
-                disabled={!registrationComplete || saving || saved}
-            >
-                <Text style={styles.saveButtonText}>
-                    {saving ? 'Enviando...' : 'Finalizar registro'}
-                </Text>
-            </TouchableOpacity>
+            {!saved && (
+                <TouchableOpacity
+                    style={[
+                        styles.saveButton,
+                        (!registrationComplete || saving) && styles.saveButtonDisabled,
+                    ]}
+                    onPress={handleSaveDocuments}
+                    disabled={!registrationComplete || saving}
+                >
+                    <Text style={styles.saveButtonText}>
+                        {saving ? 'Enviando...' : 'Finalizar registro'}
+                    </Text>
+                </TouchableOpacity>
+            )}
         </FormScreen>
     );
 }
@@ -616,10 +632,35 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     successText: {
-        fontSize: 13,
-        color: '#16A34A',
+        fontSize: 14,
+        color: '#15803D',
         fontWeight: '600',
-        marginTop: 12,
+        marginBottom: 12,
         textAlign: 'center',
+        lineHeight: 20,
+    },
+    savedCard: {
+        backgroundColor: '#DCFCE7',
+        borderWidth: 1,
+        borderColor: '#BBF7D0',
+        borderRadius: 12,
+        padding: 16,
+        marginTop: 16,
+        alignItems: 'center',
+    },
+    profileNavButton: {
+        flexDirection: 'row',
+        backgroundColor: '#000000',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 4,
+    },
+    profileNavButtonText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
     },
 });
