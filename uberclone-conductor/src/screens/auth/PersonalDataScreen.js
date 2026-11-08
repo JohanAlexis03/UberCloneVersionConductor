@@ -1,19 +1,22 @@
 // AI-assisted: see docs/AI_LOG.md #4
 import React, { useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { GENDER_OPTIONS } from '../../constants/options';
 import { isValidFullName, isValidColombianId, isValidPhone, isValidEmail, validateAge } from '../../utils/validators';
+import { uploadToCloudinary } from '../../services/cloudinary';
 import { useRegistration } from '../../context/DriverRegistrationContext';
 import FormScreen, { useScrollToEnd } from '../../components/FormScreen';
 import FieldLabel from '../../components/FieldLabel';
+import DateField from '../../components/DateField';
 
 
 
 export default function PersonalDataScreen({ navigation }) {
   const [profilePhoto, setProfilePhoto] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [fullName, setFullName] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [phone, setPhone] = useState('');
@@ -34,6 +37,13 @@ export default function PersonalDataScreen({ navigation }) {
   const { width } = useWindowDimensions();
   const photoSize = Math.min(112, Math.round(width * 0.3));
 
+  // El calendario no permite elegir a un menor de edad ni edades irreales
+  const maxBirthDate = new Date();
+  maxBirthDate.setFullYear(maxBirthDate.getFullYear() - 18);
+
+  const minBirthDate = new Date();
+  minBirthDate.setFullYear(minBirthDate.getFullYear() - 100);
+
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -52,8 +62,22 @@ export default function PersonalDataScreen({ navigation }) {
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      setProfilePhoto(result.assets[0].uri);
-      setErrors((prev) => ({ ...prev, profilePhoto: null }));
+      setUploadingPhoto(true);
+
+      try {
+        // La foto se sube en el momento y se guarda su URL de Cloudinary.
+        // Asi Firestore nunca guarda una ruta temporal del telefono.
+        const url = await uploadToCloudinary(result.assets[0]);
+        setProfilePhoto(url);
+        setErrors((prev) => ({ ...prev, profilePhoto: null }));
+      } catch (error) {
+        setErrors((prev) => ({
+          ...prev,
+          profilePhoto: error.message,
+        }));
+      } finally {
+        setUploadingPhoto(false);
+      }
     }
   };
 
@@ -116,12 +140,12 @@ export default function PersonalDataScreen({ navigation }) {
     if (validateForm()) {
       updatePersonalData({
         profilePhoto,
-        fullName,
-        idNumber,
-        phone,
+        fullName: fullName.trim().replace(/\s+/g, ' '),
+        idNumber: idNumber.trim(),
+        phone: phone.trim(),
         birthDate,
         gender,
-        email,
+        email: email.trim().toLowerCase(),
         language,
       });
       navigation.navigate('VehicleData');
@@ -146,8 +170,14 @@ export default function PersonalDataScreen({ navigation }) {
           ]}
           onPress={handlePickImage}
           activeOpacity={0.8}
+          disabled={uploadingPhoto}
         >
-          {profilePhoto ? (
+          {uploadingPhoto ? (
+            <View style={styles.photoPlaceholder}>
+              <ActivityIndicator color="#111827" />
+              <Text style={styles.photoSubtext}>Subiendo...</Text>
+            </View>
+          ) : profilePhoto ? (
             <Image source={{ uri: profilePhoto }} style={styles.photoPreview} />
           ) : (
             <View style={styles.photoPlaceholder}>
@@ -216,17 +246,17 @@ export default function PersonalDataScreen({ navigation }) {
 
       {/* Birth Date Field */}
       <View style={styles.fieldGroup}>
-        <FieldLabel icon="calendar-outline">Fecha de Nacimiento</FieldLabel>
-        <TextInput
-          style={[styles.input, errors.birthDate && styles.inputError]}
-          placeholder="Ej: 1995-08-24"
-          placeholderTextColor="#9CA3AF"
+        <FieldLabel icon="calendar-outline">Fecha de Nacimiento *</FieldLabel>
+        <DateField
           value={birthDate}
-          maxLength={10}
-          onChangeText={(val) => {
-            setBirthDate(val);
+          onChange={(value) => {
+            setBirthDate(value);
             if (errors.birthDate) setErrors((prev) => ({ ...prev, birthDate: null }));
           }}
+          hasError={Boolean(errors.birthDate)}
+          minimumDate={minBirthDate}
+          maximumDate={maxBirthDate}
+          placeholder="Selecciona tu fecha de nacimiento"
         />
         <Text style={styles.helperText}>Debes ser mayor de 18 años.</Text>
         {errors.birthDate && <Text style={styles.errorText}>{errors.birthDate}</Text>}

@@ -1,10 +1,11 @@
 //captura de los datos del vehiculo
 import React, { useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { CATEGORY_OPTIONS, COLOR_OPTIONS } from '../../constants/options';
-import { isValidColombianPlate, isValidVehicleYear } from '../../utils/validators';
+import { isValidColombianPlate, isValidVehicleYear, isValidVehicleBrand, isValidVehicleModel } from '../../utils/validators';
+import { uploadToCloudinary } from '../../services/cloudinary';
 import { useRegistration } from '../../context/DriverRegistrationContext';
 import FormScreen, { useScrollToEnd } from '../../components/FormScreen';
 import FieldLabel from '../../components/FieldLabel';
@@ -19,6 +20,7 @@ export default function VehicleDataScreen({ navigation }) {
     const [color, setColor] = useState('');
     const [passengerCapacity, setPassengerCapacity] = useState('4');
     const [vehiclePhoto, setVehiclePhoto] = useState(null);
+    const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
     //Estado de errores
     const [errors, setErrors] = useState({});
@@ -52,8 +54,21 @@ export default function VehicleDataScreen({ navigation }) {
         });
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
-            setVehiclePhoto(result.assets[0].uri);
-            setErrors((prev) => ({ ...prev, vehiclePhoto: null }));
+            setUploadingPhoto(true);
+
+            try {
+                // Se guarda la URL de Cloudinary, no la ruta temporal del telefono.
+                const url = await uploadToCloudinary(result.assets[0]);
+                setVehiclePhoto(url);
+                setErrors((prev) => ({ ...prev, vehiclePhoto: null }));
+            } catch (error) {
+                setErrors((prev) => ({
+                    ...prev,
+                    vehiclePhoto: error.message,
+                }));
+            } finally {
+                setUploadingPhoto(false);
+            }
         }
     };
 
@@ -84,17 +99,17 @@ export default function VehicleDataScreen({ navigation }) {
         }
 
         //validacion de la marca obligatoria
-        if (!brand) {
+        if (!brand.trim()) {
             newErrors.brand = 'La marca es obligatoria.';
-        } else if (brand.length > 30) {
-            newErrors.brand = 'Máximo 30 caracteres.';
+        } else if (!isValidVehicleBrand(brand)) {
+            newErrors.brand = 'Marca inválida. Solo letras (ej: Toyota).';
         }
 
         //validacion del modelo obligatorio
-        if (!model) {
+        if (!model.trim()) {
             newErrors.model = 'El modelo es obligatorio.';
-        } else if (model.length > 30) {
-            newErrors.model = 'Máximo 30 caracteres.';
+        } else if (!isValidVehicleModel(model)) {
+            newErrors.model = 'Modelo inválido. Solo letras y números (ej: J88).';
         }
         //validacion de año obligatorio
         if (!isValidVehicleYear(year)) {
@@ -132,12 +147,13 @@ export default function VehicleDataScreen({ navigation }) {
         if (validateForm()) {
             updateVehicleData({
                 category,
-                plate,
-                brand,
-                model,
-                year,
+                plate: plate.trim().toUpperCase(),
+                brand: brand.trim().replace(/\s+/g, ' '),
+                model: model.trim().replace(/\s+/g, ' '),
+                // Los campos numericos se guardan como numeros, no como texto
+                year: Number(year),
                 color,
-                passengerCapacity,
+                passengerCapacity: Number(passengerCapacity),
                 vehiclePhoto,
             });
             navigation.navigate('Documents');
@@ -320,8 +336,14 @@ export default function VehicleDataScreen({ navigation }) {
                     style={[styles.photoContainer, { height: photoHeight }]}
                     onPress={handlePickVehiclePhoto}
                     activeOpacity={0.8}
+                    disabled={uploadingPhoto}
                 >
-                    {vehiclePhoto ? (
+                    {uploadingPhoto ? (
+                        <View style={styles.photoPlaceholder}>
+                            <ActivityIndicator color="#111827" />
+                            <Text style={styles.photoSubtext}>Subiendo...</Text>
+                        </View>
+                    ) : vehiclePhoto ? (
                         <Image source={{ uri: vehiclePhoto }} style={styles.photoPreview} />
                     ) : (
                         <View style={styles.photoPlaceholder}>

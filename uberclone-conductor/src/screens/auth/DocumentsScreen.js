@@ -1,12 +1,15 @@
 import React, { useRef, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { doc, collection, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRegistration } from '../../context/DriverRegistrationContext';
 import { db } from '../../config/firebase';
+import { uploadToCloudinary } from '../../services/cloudinary';
+import { isValidExpiryDate, isValidLicenseNumber } from '../../utils/validators';
 import FormScreen, { useScrollToEnd } from '../../components/FormScreen';
 import FieldLabel from '../../components/FieldLabel';
+import DateField from '../../components/DateField';
 
 export default function DocumentsScreen() {
     const {
@@ -19,6 +22,8 @@ export default function DocumentsScreen() {
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    // Guarda el nombre del campo que se esta subiendo a Cloudinary
+    const [uploadingField, setUploadingField] = useState(null);
 
     // Referencia al scroll para acercar los campos que quedan al final
     const scrollRef = useRef(null);
@@ -50,7 +55,21 @@ export default function DocumentsScreen() {
             });
 
             if (!result.canceled) {
-                updateField(fieldName, result.assets[0].uri);
+                setUploadingField(fieldName);
+
+                try {
+                    // Se sube la imagen y se guarda la URL de Cloudinary.
+                    // La ruta file:// del telefono dejaria de existir al limpiar cache.
+                    const url = await uploadToCloudinary(result.assets[0]);
+                    updateField(fieldName, url);
+                } catch (error) {
+                    setErrors((previous) => ({
+                        ...previous,
+                        [fieldName]: error.message,
+                    }));
+                } finally {
+                    setUploadingField(null);
+                }
             }
         } catch (error) {
             setErrors((previous) => ({
@@ -70,28 +89,18 @@ export default function DocumentsScreen() {
         }));
     };
 
-    // Validar fecha de vencimiento
-    const isValidExpiry = (date) => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-            return false;
-        }
+    // Las fechas de vencimiento deben ser posteriores a hoy, por eso el
+    // calendario arranca en manana y no deja elegir hoy ni el pasado.
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
 
-        const [year, month, day] = date.split('-').map(Number);
-        const parsedDate = new Date(year, month - 1, day);
-
-        if (
-            parsedDate.getFullYear() !== year ||
-            parsedDate.getMonth() !== month - 1 ||
-            parsedDate.getDate() !== day
-        ) {
-            return false;
-        }
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        return parsedDate > today;
-    };
+    // Vehículos con más de 5 años necesitan revisión técnico-mecánica.
+    // Si todavía no hay año, se exige por seguridad.
+    const vehicleAge = vehicleData.year
+        ? new Date().getFullYear() - Number(vehicleData.year)
+        : 0;
+    const requiresTechInspection = !vehicleData.year || vehicleAge > 5;
 
     // Validar formulario
     const validateForm = () => {
@@ -99,30 +108,36 @@ export default function DocumentsScreen() {
 
         if (!documentsData.licenseNumber.trim()) {
             newErrors.licenseNumber = 'Ingresa el número de licencia.';
+        } else if (!isValidLicenseNumber(documentsData.licenseNumber)) {
+            newErrors.licenseNumber = 'Licencia inválida (6 a 16 caracteres alfanuméricos).';
         }
 
         if (!documentsData.licensePhoto) {
             newErrors.licensePhoto = 'Debes subir la foto de la licencia.';
         }
 
-        if (!isValidExpiry(documentsData.licenseExpiry)) {
-            newErrors.licenseExpiry = 'Ingresa la fecha de vencimiento (posterior a hoy).';
+        if (!isValidExpiryDate(documentsData.licenseExpiry)) {
+            newErrors.licenseExpiry = 'Selecciona una fecha posterior a hoy.';
         }
 
         if (!documentsData.soatPhoto) {
             newErrors.soatPhoto = 'Debes subir el SOAT.';
         }
 
-        if (!isValidExpiry(documentsData.soatExpiry)) {
-            newErrors.soatExpiry = 'Ingresa la fecha de vencimiento (posterior a hoy).';
+        if (!isValidExpiryDate(documentsData.soatExpiry)) {
+            newErrors.soatExpiry = 'Selecciona una fecha posterior a hoy.';
         }
 
-        if (!documentsData.techPhoto) {
-            newErrors.techPhoto = 'Debes subir la revisión técnico-mecánica.';
-        }
+        // La técnico-mecánica solo es obligatoria si el vehículo tiene más
+        // de 5 años (spec de la Pestaña 3).
+        if (requiresTechInspection) {
+            if (!documentsData.techPhoto) {
+                newErrors.techPhoto = 'Debes subir la revisión técnico-mecánica.';
+            }
 
-        if (!isValidExpiry(documentsData.techExpiry)) {
-            newErrors.techExpiry = 'Ingresa la fecha de vencimiento (posterior a hoy).';
+            if (!isValidExpiryDate(documentsData.techExpiry)) {
+                newErrors.techExpiry = 'Selecciona una fecha posterior a hoy.';
+            }
         }
 
         if (
@@ -147,19 +162,28 @@ export default function DocumentsScreen() {
         title,
         description,
         photoField,
-        expiryField
+        expiryField,
+        optional = false
     ) => (
         <View style={styles.documentCard}>
             <FieldLabel icon={icon} style={styles.documentTitle}>
                 {title}
             </FieldLabel>
-            <Text style={styles.documentDescription}>{description}</Text>
+            <Text style={styles.documentDescription}>
+                {optional ? `${description} (opcional para tu vehículo)` : description}
+            </Text>
 
             <TouchableOpacity
                 style={[styles.photoButton, { height: photoHeight }]}
                 onPress={() => pickDocumentPhoto(photoField)}
+                disabled={uploadingField === photoField}
             >
-                {documentsData[photoField] ? (
+                {uploadingField === photoField ? (
+                    <View style={styles.photoPlaceholder}>
+                        <ActivityIndicator color="#111827" />
+                        <Text style={styles.photoText}>Subiendo...</Text>
+                    </View>
+                ) : documentsData[photoField] ? (
                     <Image
                         source={{ uri: documentsData[photoField] }}
                         style={styles.documentImage}
@@ -178,15 +202,12 @@ export default function DocumentsScreen() {
 
             <FieldLabel icon="calendar-outline">Fecha de vencimiento</FieldLabel>
 
-            <TextInput
-                style={[
-                    styles.input,
-                    errors[expiryField] && styles.inputError,
-                ]}
-                placeholder="AAAA-MM-DD"
-                placeholderTextColor="#999"
+            <DateField
                 value={documentsData[expiryField]}
-                onChangeText={(value) => updateField(expiryField, value)}
+                onChange={(value) => updateField(expiryField, value)}
+                hasError={Boolean(errors[expiryField])}
+                minimumDate={tomorrow}
+                placeholder="Selecciona la fecha de vencimiento"
             />
 
             {errors[expiryField] && (
@@ -222,18 +243,41 @@ export default function DocumentsScreen() {
         setErrors((previous) => ({ ...previous, form: null }));
 
         try {
-            const driverRef = doc(collection(db, 'drivers'));
+            // El documento se identifica con la cedula del conductor.
+            // Asi la misma persona no genera un registro nuevo cada vez.
+            const driverId = personalData.idNumber.trim();
+            const driverRef = doc(db, 'drivers', driverId);
 
+            // Normalizamos los textos una vez mas al escribir: lo que llega
+            // a Firestore siempre va limpio, sin espacios ni mayusculas sueltas.
             await setDoc(driverRef, {
-                personalData,
-                vehicleData,
-                documentsData,
+                personalData: {
+                    ...personalData,
+                    fullName: personalData.fullName.trim().replace(/\s+/g, ' '),
+                    idNumber: driverId,
+                    email: personalData.email.trim().toLowerCase(),
+                },
+                vehicleData: {
+                    ...vehicleData,
+                    plate: vehicleData.plate.trim().toUpperCase(),
+                    brand: vehicleData.brand.trim().replace(/\s+/g, ' '),
+                    model: vehicleData.model.trim().replace(/\s+/g, ' '),
+                    // Se fuerzan a numero: Firestore distingue "4" de 4
+                    year: Number(vehicleData.year),
+                    passengerCapacity: Number(vehicleData.passengerCapacity),
+                },
+                documentsData: {
+                    ...documentsData,
+                    licenseNumber: documentsData.licenseNumber.trim().toUpperCase(),
+                    mercadoPagoEmail: documentsData.mercadoPagoEmail.trim().toLowerCase(),
+                    driverId,
+                },
                 status: 'pending',
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
             });
 
-            updateDocumentsData({ driverId: driverRef.id });
+            updateDocumentsData({ driverId });
             setSaved(true);
         } catch (error) {
             setErrors((previous) => ({
@@ -272,8 +316,13 @@ export default function DocumentsScreen() {
                     ]}
                     placeholder="Número de licencia"
                     placeholderTextColor="#999"
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={16}
                     value={documentsData.licenseNumber}
-                    onChangeText={(value) => updateField('licenseNumber', value)}
+                    onChangeText={(value) =>
+                        updateField('licenseNumber', value.toUpperCase().trim())
+                    }
                 />
 
                 {errors.licenseNumber && (
@@ -283,8 +332,14 @@ export default function DocumentsScreen() {
                 <TouchableOpacity
                     style={[styles.photoButton, { height: photoHeight }]}
                     onPress={() => pickDocumentPhoto('licensePhoto')}
+                    disabled={uploadingField === 'licensePhoto'}
                 >
-                    {documentsData.licensePhoto ? (
+                    {uploadingField === 'licensePhoto' ? (
+                        <View style={styles.photoPlaceholder}>
+                            <ActivityIndicator color="#111827" />
+                            <Text style={styles.photoText}>Subiendo...</Text>
+                        </View>
+                    ) : documentsData.licensePhoto ? (
                         <Image
                             source={{ uri: documentsData.licensePhoto }}
                             style={styles.documentImage}
@@ -303,15 +358,12 @@ export default function DocumentsScreen() {
 
                 <FieldLabel icon="calendar-outline">Fecha de vencimiento</FieldLabel>
 
-                <TextInput
-                    style={[
-                        styles.input,
-                        errors.licenseExpiry && styles.inputError,
-                    ]}
-                    placeholder="AAAA-MM-DD"
-                    placeholderTextColor="#999"
+                <DateField
                     value={documentsData.licenseExpiry}
-                    onChangeText={(value) => updateField('licenseExpiry', value)}
+                    onChange={(value) => updateField('licenseExpiry', value)}
+                    hasError={Boolean(errors.licenseExpiry)}
+                    minimumDate={tomorrow}
+                    placeholder="Selecciona la fecha de vencimiento"
                 />
 
                 {errors.licenseExpiry && (
@@ -334,7 +386,8 @@ export default function DocumentsScreen() {
                 'Revisión técnico-mecánica',
                 'Adjunta el documento de la revisión técnico-mecánica.',
                 'techPhoto',
-                'techExpiry'
+                'techExpiry',
+                !requiresTechInspection
             )}
 
             {/* Mercado Pago */}
