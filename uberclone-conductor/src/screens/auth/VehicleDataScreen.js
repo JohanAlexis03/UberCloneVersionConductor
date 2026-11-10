@@ -113,7 +113,7 @@ export default function VehicleDataScreen({ navigation }) {
         }
         //validacion de año obligatorio
         if (!isValidVehicleYear(year)) {
-            newErrors.year = 'Año inválido (entre 1990 y el actual).';
+            newErrors.year = `Año inválido (entre 1990 y ${new Date().getFullYear() + 1}).`;
         }
         //Validacion de color obligatorio
         if (!color) {

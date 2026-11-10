@@ -1,5 +1,5 @@
 // AI-assisted: see docs/AI_LOG.md #11
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, useWindowDimensions, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +35,14 @@ export default function DocumentsScreen({ navigation }) {
     // Las fotos de documentos se adaptan al ancho real de la pantalla
     const { width } = useWindowDimensions();
     const photoHeight = Math.min(190, Math.round(width * 0.5));
+
+    // En Colombia, según la Resolución 623 de 2013 del Ministerio de Transporte,
+    // el número de licencia de conducción es idéntico a la cédula de ciudadanía.
+    useEffect(() => {
+        if (!documentsData.licenseNumber && personalData.idNumber) {
+            updateDocumentsData({ licenseNumber: personalData.idNumber.trim() });
+        }
+    }, [personalData.idNumber]);
 
     // Seleccionar foto de un documento
     const pickDocumentPhoto = async (fieldName) => {
@@ -111,6 +119,8 @@ export default function DocumentsScreen({ navigation }) {
 
         if (!documentsData.licenseNumber.trim()) {
             newErrors.licenseNumber = 'Ingresa el número de licencia.';
+        } else if (personalData.idNumber && documentsData.licenseNumber.trim() !== personalData.idNumber.trim()) {
+            newErrors.licenseNumber = 'En Colombia el número de licencia debe coincidir con tu cédula.';
         } else if (!isValidLicenseNumber(documentsData.licenseNumber)) {
             newErrors.licenseNumber = 'Licencia inválida (6 a 16 caracteres alfanuméricos).';
         }

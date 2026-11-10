@@ -104,8 +104,9 @@ export const isValidVehicleYear = (year) => {
     if (!/^\d{4}$/.test(value)) return false;
 
     const parsed = Number(value);
-    const currentYear = new Date().getFullYear();
-    return parsed >= 1990 && parsed <= currentYear;
+    // En Colombia la norma RUNT permite matricular modelos del año siguiente
+    const maxYear = new Date().getFullYear() + 1;
+    return parsed >= 1990 && parsed <= maxYear;
 };
 
 export const isValidVehicleBrand = (brand) => {
