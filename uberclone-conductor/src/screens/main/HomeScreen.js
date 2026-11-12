@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #22
+// AI-assisted: see docs/AI_LOG.md #23
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -23,6 +23,7 @@ import IncomingRequestScreen from '../trip/IncomingRequestScreen';
 import { calculateFare } from '../../config/pricing';
 import { fetchRoadRoute } from '../../services/routing';
 import { haversineKm } from '../../utils/geo';
+import { pickSimulatedTrip } from '../../utils/simulator';
 
 /**
  * Texto de dirección de un punto, obtenido de SUS coordenadas.
@@ -33,13 +34,17 @@ import { haversineKm } from '../../utils/geo';
  * son el mismo dato.
  *
  * @param {{latitude: number, longitude: number}} point
+ * @param {string|null} [fallbackLabel] - Nombre del lugar, si el punto viene
+ *   del catálogo del simulador. Solo se usa si la geocodificación falla.
  * @returns {Promise<string>}
  */
-async function describePoint(point) {
+async function describePoint(point, fallbackLabel) {
+  const fallback = fallbackLabel || 'Dirección no disponible';
+
   try {
     const results = await Location.reverseGeocodeAsync(point);
     const place = results?.[0];
-    if (!place) return 'Dirección no disponible';
+    if (!place) return fallback;
 
     // En Android llega armada; en iOS se compone con las partes
     if (place.formattedAddress) return place.formattedAddress;
@@ -48,10 +53,10 @@ async function describePoint(point) {
     const zone = place.district || place.subregion || place.city;
     const composed = [streetLine, zone].filter(Boolean).join(', ');
 
-    return composed || place.name || 'Dirección no disponible';
+    return composed || place.name || fallback;
   } catch (error) {
     console.warn('No se pudo obtener la dirección del punto:', error.message);
-    return 'Dirección no disponible';
+    return fallback;
   }
 }
 
@@ -172,8 +177,14 @@ export default function HomeScreen({ navigation }) {
       const currentLng = location?.longitude || DEFAULT_COORDS.longitude;
 
       const driverPoint = { latitude: currentLat, longitude: currentLng };
-      const requestedOrigin = { latitude: currentLat + 0.003, longitude: currentLng + 0.002 };
-      const requestedDestination = { latitude: currentLat + 0.035, longitude: currentLng - 0.015 };
+
+      // La carrera sale de un catálogo de lugares que existen: la recogida es
+      // el lugar real más cercano al conductor y el destino otro lugar del
+      // área metropolitana. Antes se sumaban grados a la posición actual y se
+      // escribía una dirección de barrio fija, que no correspondía al punto.
+      const simulated = pickSimulatedTrip(driverPoint);
+      const requestedOrigin = simulated.origin;
+      const requestedDestination = simulated.destination;
 
       // Trazado real por calles. OSRM devuelve cientos de puntos, que es lo
       // que permite dibujar el recorrido y no una linea recta entre dos
@@ -210,8 +221,8 @@ export default function HomeScreen({ navigation }) {
 
       // Las direcciones se obtienen de las coordenadas de cada punto, una
       // detras de otra: geocodificar en paralelo satura el servicio.
-      const originAddress = await describePoint(origin);
-      const destinationAddress = await describePoint(destination);
+      const originAddress = await describePoint(origin, requestedOrigin.name);
+      const destinationAddress = await describePoint(destination, requestedDestination.name);
 
       // Crear documento en colección 'trips'
       // origin y destination usan lat/lng, como define el esquema del spec.
@@ -266,8 +277,6 @@ export default function HomeScreen({ navigation }) {
         loadingEnabled
         loadingBackgroundColor="#FFFFFF"
         loadingIndicatorColor="#111827"
-        onMapReady={() => console.log('[Mapa] vista nativa lista')}
-        onMapLoaded={() => console.log('[Mapa] teselas cargadas')}
       >
         {location && (
           <Marker
