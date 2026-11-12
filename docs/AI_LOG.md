@@ -157,3 +157,87 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Archivos y commit:** `uberclone-conductor/src/services/cloudinary.js`, `uberclone-conductor/.env.example`, `uberclone-conductor/src/screens/auth/PersonalDataScreen.js`, `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js` — `5005426` (mismo commit que la entrada #9)
 - **Verificación:** Se confirmó contra la API real que el cloud name `cx3t5rmq` existe y que el formato de error es `{"error":{"message":"..."}}`, que es el que lee el código. Bundle de desarrollo compilado sin errores de resolución (HTTP 200) y el cloud name aparece inlined en el bundle.
 - **Aprendizaje:** La URI que devuelve `expo-image-picker` apunta a la carpeta de caché de la app (`file:///.../Library/Caches/ImagePicker/...`), no a la galería del usuario: el sistema puede borrarla y ningún otro dispositivo puede abrirla. En una app móvil el secreto de un servicio de medios nunca va en el cliente; por eso se usa un preset unsigned con permisos limitados.
+
+---
+
+### Entrada #11 (Commit 11/32)
+- **Fecha:** 2026-11-08
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar la sesión global del conductor con DriverContext persistido en AsyncStorage, bloqueo estricto de disponibilidad en estado 'pending', pantalla de Perfil con badge de validación y pantalla de Ajustes con selector interactivo de idioma (es/en).
+- **Prompt:** "continuemos con la pantalla de Perfil y Ajustes con selector de idioma"
+- **Resumen de la respuesta:** Se creó `DriverContext` con persistencia en `AsyncStorage` exclusivamente para datos no sensibles (`language`, `isAvailable`, `activeDriverId`). Se aplicó la regla de negocio que bloquea la disponibilidad si el estado del conductor es `pending`. Se maquetaron `ProfileScreen` (con foto de Cloudinary, datos del vehículo, badge de aprobación y pull-to-refresh) y `SettingsScreen` (con selector interactivo es/en vía `TRANSLATIONS` y cierre de sesión).
+- **Qué se usó / modificó / descartó:** Se usó `AsyncStorage` solo para preferencias ligeras y `Firestore` para el documento completo del conductor. Se descartó almacenar datos sensibles localmente. Se integró `RootStackNavigator` para enlazar el registro con el perfil del conductor.
+- **Archivos y commit:** `uberclone-conductor/src/context/DriverContext.js`, `uberclone-conductor/src/constants/translations.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/ProfileScreen.js`, `uberclone-conductor/src/screens/main/SettingsScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js`, `uberclone-conductor/App.js` — `89a4a2d`
+- **Verificación:** Verificación sintáctica con Node sin errores. Verificación de lógica de bloqueo: `setAvailability(true)` rechaza la activación cuando el conductor está en estado `pending`.
+- **Aprendizaje:** Separación estricta de responsabilidades entre almacenamiento local (`AsyncStorage` solo para preferencias de UI y sesión) y base de datos remota (`Firestore` para información sensible y estado de validación). El switch de disponibilidad no puede ser un simple booleano en memoria; debe estar gobernado por el estado de verificación del backend.
+
+---
+
+### Entrada #12 (Commit 12/32)
+- **Fecha:** 2026-11-09
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Adaptar las validaciones del vehículo y documentación a la normativa de transporte de Colombia (RUNT y Mintransporte): permitir año modelo entrante (currentYear + 1) y sincronizar la licencia de conducción con la cédula de ciudadanía.
+- **Prompt:** "en colombia se expiden carros con matricula del año siguiente... adicional, la cédula con el número de licencia ha de ser el mismo; hazle test a toda la app, valida todos los bugs"
+- **Resumen de la respuesta:** Se modificó `isValidVehicleYear` para permitir modelos hasta `currentYear + 1` conforme a la regla del RUNT. En `DocumentsScreen`, se implementó reactividad con `useEffect` para pre-llenar la licencia con la cédula de la Pestaña 1 y se agregó validación cruzada para evitar discrepancias. Se ejecutó una suite de 17 pruebas automatizadas con Node validando fechas, identidades, placas, modelos, motor de tarifas (`pricing.js`) y paridad i18n (`es`/`en`).
+- **Qué se usó / modificó / descartó:** Se aplicó el principio de Única Fuente de Verdad (SSOT) para la identidad del conductor. Se descartó solicitar el número de licencia como campo aislado desconectado de la cédula.
+- **Archivos y commit:** `uberclone-conductor/src/utils/validators.js`, `uberclone-conductor/src/screens/auth/VehicleDataScreen.js`, `uberclone-conductor/src/screens/auth/DocumentsScreen.js` — `7e395ee`
+- **Verificación:** Suite de 17 pruebas automatizadas ejecutadas con Node (17/17 aprobadas al 100%), verificando límites del año (1989, 1990, actual, actual+1, actual+2), bisiestos y desbordes, tarifas mínimas y propinas, y paridad total de claves en el diccionario de traducciones.
+- **Aprendizaje:** Las validaciones de software nunca deben diseñarse con supuestos técnicos aislados del dominio real. La ley colombiana permite matricular modelos del año siguiente a mitad de año y unifica la licencia con la cédula; ignorar estas reglas de negocio generaba falsos rechazos a usuarios legítimos.
+
+---
+
+### Entrada #13 (Commit 13/32)
+- **Fecha:** 2026-11-09
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar el custom hook obligatorio useDriverLocation con gestión de permisos, geolocalización continua de alta precisión condicionada a la disponibilidad, sincronización en tiempo real con Firestore y función de limpieza (cleanup) estricta en el retorno de useEffect.
+- **Prompt:** "listo hagamosle"
+- **Resumen de la respuesta:** Se creó `useDriverLocation.js` en `src/hooks/`. Maneja permisos de geolocalización en primer plano, obtiene ubicación inicial rápida de respaldo con `getLastKnownPositionAsync()`, inicia `watchPositionAsync` con precisión alta (`Accuracy.High`) únicamente cuando `isAvailable === true`, sincroniza las coordenadas en Firestore (`currentLocation`) y cancela la suscripción en el cleanup de `useEffect` mediante `subscription.remove()`.
+- **Qué se usó / modificó / descartó:** Se utilizó `expo-location` con intervalos de 10 metros y 3 segundos. Se descartó mantener el GPS encendido cuando el conductor está desconectado para evitar el drenaje de batería y la saturación de lecturas/escrituras en Firestore.
+- **Archivos y commit:** `uberclone-conductor/src/hooks/useDriverLocation.js`, `uberclone-conductor/package.json` — `3193f1e`
+- **Verificación:** Análisis sintáctico con Node sin errores. Verificación de arquitectura de React: control de componente desmontado con `isMountedRef` y cancelación de suscripción de hardware en el `return` de `useEffect`.
+- **Aprendizaje:** Las suscripciones a sensores de hardware (como el GPS) deben estar estrictamente gobernadas por el estado de negocio (`isAvailable`) y limpiadas en el retorno de `useEffect`. Desacoplar el hardware en un custom hook evita que la pantalla del mapa se sobrecargue de responsabilidades.
+
+---
+
+### Entrada #14 (Commit 14/32)
+- **Fecha:** 2026-11-09
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar el custom hook obligatorio useTripRequests con escucha en tiempo real de viajes en Firestore, temporizador regresivo de 15 segundos con auto-rechazo por timeout, optimización con useCallback y limpieza estricta en useEffect.
+- **Prompt:** "yo probe y tood al pelo continuemos"
+- **Resumen de la respuesta:** Se implementó `useTripRequests.js` en `src/hooks/`. Escucha solicitudes entrantes en Firestore con `onSnapshot` únicamente cuando el conductor está disponible (`isAvailable === true`), activa un temporizador regresivo de 15 segundos que cancela automáticamente con motivo `timeout` al expirar, expone `acceptTrip` y `rejectTrip` memorizados con `useCallback` para evitar re-renders en cada segundo del reloj y realiza la limpieza estricta (`clearInterval` y `unsubscribe`) en el retorno de `useEffect`.
+- **Qué se usó / modificó / descartó:** Se utilizó `setInterval` controlado por `timerRef` y `useCallback` para los manejadores. Se descartó ejecutar suscripciones cuando el conductor está inactivo y se garantizó la desconexión inmediata de la consulta en Firestore.
+- **Archivos y commit:** `uberclone-conductor/src/hooks/useTripRequests.js` — `dff90a4`
+- **Verificación:** Análisis sintáctico con Node sin errores. Verificación del ciclo de vida del temporizador: cancelación garantizada mediante `clearInterval` al aceptar, rechazar o desmontar el hook.
+- **Aprendizaje:** En estados que mutan cada segundo (como un reloj regresivo), no usar `useCallback` en los handlers pasados a la vista produce renders innecesarios en toda la pantalla a 1 Hz. Limpiar el intervalo en el retorno de `useEffect` es mandatorio para evitar temporizadores zombis en segundo plano.
+
+---
+
+### Entrada #15 (Commit 15/32)
+- **Fecha:** 2026-11-09
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar el tercer custom hook obligatorio useEarnings con cálculo financiero memorizado mediante useMemo para Hoy, Semana y Mes, y ajuste de saldo del conductor con deducción de comisión en viajes de efectivo.
+- **Prompt:** "dale, de una, adicional dime que porcentaje vamos del proyecto y que nos falta para completarlo todo que quede melo ?"
+- **Resumen de la respuesta:** Se creó `useEarnings.js` en `src/hooks/`. Consulta el historial de viajes completados y pagados en Firestore, procesa las métricas de Hoy, Semana y Mes optimizadas con `useMemo` para evitar cálculos pesados en cada render y computa el saldo neto acumulado descontando el 20% de comisión de los pagos en efectivo y sumando las ganancias netas de pasarela.
+- **Qué se usó / modificó / descartó:** Se utilizó `useMemo` con dependencia exclusiva en `[trips]`. Se descartó recalcular métricas en el cuerpo del componente y se aisló la lógica financiera en el hook.
+- **Archivos y commit:** `uberclone-conductor/src/hooks/useEarnings.js` — `4caefb2`
+- **Verificación:** Verificación sintáctica con Node y prueba matemática unitaria validando acumulación de tarifas, comisiones y cálculo de saldo mixto (efectivo + pasarela).
+- **Aprendizaje:** En paneles analíticos, iterar listas de transacciones en cada render degrada los 60 fps; `useMemo` garantiza costo computacional cero si los datos no cambiaron. La regla de cobro en efectivo exige deducción en saldo porque el dinero físico ingresa 100% al conductor.
+
+---
+
+### Entrada #16 (Commit 16/32)
+- **Fecha:** 2026-11-09
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar la pantalla principal HomeScreen con mapa interactivo de react-native-maps, switch de disponibilidad con bloqueo estricto en estado 'pending', marcador dinámico con rumbo (heading), botón de recentrado y simulador de carreras para testing.
+- **Prompt:** "listo ya subi el push"
+- **Resumen de la respuesta:** Se construyó `HomeScreen.js` en `src/screens/main/`. Orquesta `useDriverLocation` para el seguimiento en tiempo real y rotación del marcador, `useDriver` para gobernar el switch de conexión (bloqueado con modal explicativo si el conductor está en estado `pending`), botón flotante de recentrado suave con `animateToRegion` y botón para simular carreras entrantes escribiendo en la colección `trips` de Firestore con tarifas puras de `pricing.js`. Se integró `HomeScreen` en `RootStackNavigator`.
+- **Qué se usó / modificó / descartó:** Se utilizó `react-native-maps` con `Marker` plano rotado por `heading`. Se descartó conectar al conductor si el backend reporta estado `pending`.
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/HomeScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/ProfileScreen.js` — `[PENDIENTE_HASH]`
+- **Verificación:** Análisis sintáctico con Node sin errores. Verificación de regla de negocio: al intentar activar el switch con cuenta en `pending`, se despliega el modal explicativo y se previene la conexión.
+- **Aprendizaje:** El mapa debe ser un componente presentacional puro que consuma la ubicación ya filtrada por el custom hook. Acoplar la lógica del GPS o Firebase directamente dentro del render del mapa genera bloqueos en el hilo de UI (UI thread).

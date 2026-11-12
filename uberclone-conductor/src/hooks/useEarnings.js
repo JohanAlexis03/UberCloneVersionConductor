@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #15
+// AI-assisted: see docs/AI_LOG.md #16
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   collection,
@@ -54,14 +54,15 @@ export function useEarnings(driverId) {
   const [loading, setLoading] = useState(true);
 
   // Consultar viajes en Firestore
+  // useCallback sirve para memorizar funciones y evitar que se recarguen innecesariamente
   const fetchTrips = useCallback(async () => {
-    if (!driverId) {
+    if (!driverId) { // Si no hay conductor, no hay viajes
       setTrips([]);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
+    setLoading(true); // Mientras carga, ponemos el loading en true
     try {
       const tripsRef = collection(db, 'trips');
       const q = query(

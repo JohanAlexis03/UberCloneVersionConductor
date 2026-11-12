@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #11
+// AI-assisted: see docs/AI_LOG.md #16
 import React, { useState } from 'react';
 import {
   View,
@@ -41,7 +41,18 @@ export default function ProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.headerBar}>
-        <Text style={styles.headerTitle}>{t('profile')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {navigation.canGoBack() && (
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={{ marginRight: 10, padding: 4 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color="#111827" />
+            </TouchableOpacity>
+          )}
+          <Text style={styles.headerTitle}>{t('profile')}</Text>
+        </View>
         <TouchableOpacity
           onPress={() => navigation.navigate('Settings')}
           style={styles.settingsIconBtn}
