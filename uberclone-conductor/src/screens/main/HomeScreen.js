@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #16
+// AI-assisted: see docs/AI_LOG.md #19
 import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
@@ -17,6 +17,7 @@ import { db } from '../../config/firebase';
 import { useDriver } from '../../context/DriverContext';
 import { useDriverLocation } from '../../hooks/useDriverLocation';
 import { useTripRequests } from '../../hooks/useTripRequests';
+import IncomingRequestScreen from '../trip/IncomingRequestScreen';
 import { calculateFare } from '../../config/pricing';
 
 // Coordenadas iniciales por defecto (Medellín / Valle de Aburrá)
@@ -49,8 +50,14 @@ export default function HomeScreen({ navigation }) {
   });
 
   // Hook 2: Solicitudes de viaje en tiempo real.
-  // La tarjeta con el temporizador de 15s se conecta en el siguiente paso.
-  useTripRequests({
+  // El hook trae la solicitud y su temporizador; la vista solo los dibuja.
+  const {
+    incomingTrip,
+    timeLeft,
+    acceptTrip,
+    rejectTrip,
+    loading: acceptingTrip,
+  } = useTripRequests({
     isAvailable,
     driverId,
     category: driverCategory,
@@ -318,6 +325,15 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+
+      {/* TARJETA DE SOLICITUD ENTRANTE (se rechaza sola a los 15s) */}
+      <IncomingRequestScreen
+        trip={incomingTrip}
+        timeLeft={timeLeft}
+        accepting={acceptingTrip}
+        onAccept={acceptTrip}
+        onReject={rejectTrip}
+      />
     </View>
   );
 }

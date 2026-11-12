@@ -262,6 +262,18 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "usemos esto A) Arreglar el navegador gobernado por sesión. En vez de initialRouteName estático, las pantallas cambian según driverId"
 - **Resumen de la respuesta:** `RootStackNavigator` ahora renderiza dos conjuntos de pantallas mutuamente excluyentes: si existe `driverId` registra `Home`, `Profile` y `Settings`; si no existe registra únicamente `Register`. Se eliminó la llamada a `navigation.popToTop()` en `SettingsScreen`, porque al borrarse la sesión el navegador descarta las pantallas privadas y cae solo en el registro.
 - **Qué se usó / modificó / descartó:** Se adoptó el patrón de autenticación de React Navigation basado en pantallas condicionales. Se descartó navegación imperativa (`navigate`, `reset`, `popToTop`) porque se desincroniza cuando el estado de sesión cambia por debajo del árbol de navegación.
-- **Archivos y commit:** `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/SettingsScreen.js` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/SettingsScreen.js` — `d9c9678`
 - **Verificación:** Auditoría estática con Babel sobre los 22 archivos sin hallazgos y bundle de Metro en HTTP 200. Prueba en Expo Go pendiente: cerrar sesión desde Ajustes debe llevar al registro sin recargar la app, y completar el registro debe entrar a Inicio sin navegación explícita.
 - **Aprendizaje:** `initialRouteName` se evalúa una sola vez, cuando el navegador se monta; no reacciona a cambios de estado. Cuando la sesión define qué pantallas existen, la navegación deja de ser una tarea y pasa a ser una consecuencia.
+
+### Entrada #19 (Commit 21/32)
+- **Fecha:** 2026-11-11
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Construir la tarjeta de solicitud entrante con origen, destino, distancia, duración, categoría, método de pago, tarifa, ganancia neta, temporizador regresivo de 15 segundos y botones de Aceptar y Rechazar.
+- **Prompt:** "lo que no deja es simular carrera pero lo demas ok"
+- **Resumen de la respuesta:** Se creó `IncomingRequestScreen.js` en `src/screens/trip/` como componente presentacional puro: recibe `trip`, `timeLeft` y las acciones ya resueltas por `useTripRequests`, y no consulta Firestore ni maneja relojes. Muestra la ruta de recogida y destino, tres métricas (distancia, duración, pago), el bloque de dinero con la tarifa total y la ganancia neta destacada, una barra que se vacía con el tiempo y el contador que cambia a rojo en los últimos 5 segundos. Los handlers se memorizan con `useCallback` y se conecta desde `HomeScreen`.
+- **Qué se usó / modificó / descartó:** Se reutilizó `formatCOP` de `config/pricing.js` en lugar de escribir un formateador nuevo, y `useTripRequests` para el estado y las acciones. Se descartó convertir la tarjeta en una pantalla de navegación: al vivir 15 segundos y depender del estado del hook, un `Modal` montado desde `HomeScreen` evita carreras de navegación.
+- **Archivos y commit:** `uberclone-conductor/src/screens/trip/IncomingRequestScreen.js`, `uberclone-conductor/src/screens/main/HomeScreen.js` — `[PENDIENTE_HASH]`
+- **Verificación:** Auditoría estática con Babel sobre los 23 archivos sin hallazgos, y bundle de Metro en HTTP 200. Prueba en Expo Go pendiente: simular una carrera con el switch en Disponible, comprobar la tarjeta con el contador corriendo, aceptar antes de los 15 segundos y verificar en Firestore que el viaje pasa a `accepted` con `driverId`.
+- **Aprendizaje:** Un temporizador que vive en el hook mantiene la tarjeta como componente tonto; si el reloj viviera dentro del componente, desmontarlo reiniciaría la cuenta y el rechazo automático dejaría de ser confiable. La separación también permite que `acceptTrip` corte el intervalo desde donde se originó.
