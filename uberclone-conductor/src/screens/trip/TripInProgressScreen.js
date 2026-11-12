@@ -1,5 +1,5 @@
-// AI-assisted: see docs/AI_LOG.md #21
-import React, { useState, useCallback } from 'react';
+// AI-assisted: see docs/AI_LOG.md #22
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
@@ -8,9 +8,12 @@ import {
     ActivityIndicator,
     ScrollView,
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTrip } from '../../context/TripContext';
+import { useDriver } from '../../context/DriverContext';
+import { useDriverLocation } from '../../hooks/useDriverLocation';
 import {
     TRIP_STATUS,
     TRIP_FLOW,
@@ -19,6 +22,8 @@ import {
     canTransitionTo,
 } from '../../config/tripStatus';
 import { formatCOP } from '../../config/pricing';
+import { toLatLng, buildRouteCoordinates, haversineKm } from '../../utils/geo';
+import { fetchRoadRoute } from '../../services/routing';
 
 // Valores crudos de Firestore traducidos a texto para el conductor
 const PAYMENT_LABELS = {
@@ -26,6 +31,17 @@ const PAYMENT_LABELS = {
     mercadopago: 'Mercado Pago',
     stripe: 'Tarjeta',
 };
+
+// Alto del mapa. Fijo para que las tarjetas de abajo siempre tengan espacio.
+const MAP_HEIGHT = 220;
+
+// Colores de las dos rutas: azul el tramo de recogida, negro la del viaje.
+const PICKUP_COLOR = '#2563EB';
+const TRIP_COLOR = '#111827';
+
+// Cada cuántos metros se vuelve a pedir la ruta de recogida. Pedirla en cada
+// lectura del GPS sería una petición por segundo contra un servidor público.
+const PICKUP_RECHECK_METERS = 150;
 
 /**
  * Pantalla del viaje en curso.
@@ -43,6 +59,16 @@ export default function TripInProgressScreen() {
     // Zonas seguras reales del dispositivo (notch arriba, indicador de inicio abajo)
     const insets = useSafeAreaInsets();
 
+    // Referencia al mapa para poder encuadrar la ruta cuando llega
+    const mapRef = useRef(null);
+
+    // Posición del conductor para el tramo de recogida. Es el mismo hook del
+    // inicio: al aceptar el viaje, HomeScreen se desmonta y el seguimiento
+    // pasa a vivir aquí, sin abrir una segunda suscripción de GPS.
+    const { driver, isAvailable } = useDriver();
+    const driverId = driver?.personalData?.idNumber || null;
+    const { location: driverLocation } = useDriverLocation({ isAvailable, driverId });
+
     // Bloque 1: estado compartido del viaje activo.
     const {
         activeTrip,
@@ -56,6 +82,17 @@ export default function TripInProgressScreen() {
     // El error de negocio no se muestra con Alert: va en línea, bajo el botón.
     const [working, setWorking] = useState(false);
     const [localError, setLocalError] = useState(null);
+
+    // Trazado de recogida calculado desde donde está el carro ahora.
+    const [livePickupRoute, setLivePickupRoute] = useState([]);
+
+    // Último punto desde el que se pidió ese trazado, para no repetir la
+    // petición con cada lectura del GPS.
+    const lastPickupFetchRef = useRef(null);
+
+    // Viaje y estado con los que ya se encuadró el mapa. Evita que el mapa se
+    // mueva cada vez que la ruta en vivo se refresca.
+    const lastFitKeyRef = useRef(null);
 
     // Bloque 3: datos derivados del estado actual.
     // La verdad sobre qué se puede hacer la tienen tripStatus y el contexto;
@@ -76,6 +113,88 @@ export default function TripInProgressScreen() {
     const progress = flowIndex >= 0 ? ((flowIndex + 1) / TRIP_FLOW.length) * 100 : 0;
 
     const paymentLabel = PAYMENT_LABELS[activeTrip?.paymentMethod] || activeTrip?.paymentMethod;
+
+    // Puntos del viaje, ya normalizados para el mapa. Se memorizan para que
+    // los efectos que los leen no se disparen en cada render.
+    const origin = useMemo(() => toLatLng(activeTrip?.origin), [activeTrip?.origin]);
+    const destination = useMemo(
+        () => toLatLng(activeTrip?.destination),
+        [activeTrip?.destination]
+    );
+
+    // Ruta del viaje. `routeCoordinates` es el trazado real por calles; si el
+    // documento es viejo y no lo trae, unimos origen y destino en línea recta
+    // para no dejar el mapa vacío.
+    const tripRoute = useMemo(
+        () => buildRouteCoordinates(activeTrip?.routeCoordinates, origin, destination),
+        [activeTrip?.routeCoordinates, origin, destination]
+    );
+
+    // Tramo de recogida: del conductor al punto de recogida. Solo tiene
+    // sentido mientras el pasajero no ha subido.
+    const needsPickupLeg =
+        status === TRIP_STATUS.ACCEPTED || status === TRIP_STATUS.DRIVER_ARRIVING;
+
+    // Bloque 3b: ruta de recogida desde la posición actual del carro.
+    //
+    // El trazado guardado con el viaje sale del punto donde el conductor
+    // aceptó, que a los dos minutos ya no es donde está. Se pide la ruta real
+    // otra vez cuando el carro avanza PICKUP_RECHECK_METERS, no en cada
+    // lectura del GPS.
+    const driverLat = driverLocation?.latitude;
+    const driverLng = driverLocation?.longitude;
+    const driverPoint = useMemo(
+        () =>
+            typeof driverLat === 'number' && typeof driverLng === 'number'
+                ? { latitude: driverLat, longitude: driverLng }
+                : null,
+        [driverLat, driverLng]
+    );
+
+    useEffect(() => {
+        if (!needsPickupLeg || !driverPoint || !origin) return;
+
+        const lastFetched = lastPickupFetchRef.current;
+        const movedMeters = lastFetched ? haversineKm(lastFetched, driverPoint) * 1000 : Infinity;
+        if (movedMeters < PICKUP_RECHECK_METERS) return;
+
+        lastPickupFetchRef.current = driverPoint;
+        let cancelled = false;
+
+        fetchRoadRoute(driverPoint, origin).then((route) => {
+            // Si el componente se desmontó o el punto cambió, este resultado
+            // ya no sirve: escribirlo dejaría una ruta vieja en el mapa.
+            if (cancelled) return;
+
+            // Si el servicio no respondió se conserva el último trazado bueno:
+            // borrarlo dejaría la recta como única opción.
+            if (route) setLivePickupRoute(route.coordinates);
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [needsPickupLeg, driverPoint, origin]);
+
+    // Se prefiere la ruta en vivo; si todavía no llegó, el trazado guardado
+    // con el viaje; y si el viaje es viejo y no lo trae, la recta para no
+    // dejar el mapa sin la ruta de recogida.
+    const pickupRoute = useMemo(() => {
+        if (!needsPickupLeg) return [];
+        if (livePickupRoute.length >= 2) return livePickupRoute;
+
+        return buildRouteCoordinates(
+            activeTrip?.pickupRouteCoordinates,
+            driverPoint,
+            origin
+        );
+    }, [
+        needsPickupLeg,
+        livePickupRoute,
+        activeTrip?.pickupRouteCoordinates,
+        driverPoint,
+        origin,
+    ]);
 
     // Bloque 4: un solo manejador. Avanza si hay a dónde ir; si el viaje ya
     // cerró, libera al conductor.
@@ -105,6 +224,26 @@ export default function TripInProgressScreen() {
         setWorking(false);
     }, [advanceStatus]);
 
+    // Bloque 4b: encuadrar la ruta en el mapa.
+    // Se encuadra una sola vez por viaje y estado. La ruta en vivo se refresca
+    // cada 150 metros y el mapa no debe moverse debajo del conductor en cada
+    // refresco; cuando el estado cambia, el encuadre sí cambia de significado.
+    const fitKey = activeTrip?.id ? `${activeTrip.id}:${status}` : null;
+
+    useEffect(() => {
+        if (!mapRef.current || !fitKey) return;
+        if (lastFitKeyRef.current === fitKey) return;
+
+        const points = pickupRoute.length >= 2 ? [...pickupRoute, ...tripRoute] : tripRoute;
+        if (points.length < 2) return;
+
+        lastFitKeyRef.current = fitKey;
+        mapRef.current.fitToCoordinates(points, {
+            edgePadding: { top: 48, right: 48, bottom: 48, left: 48 },
+            animated: true,
+        });
+    }, [fitKey, pickupRoute, tripRoute]);
+
     // Bloque 5: mientras el contexto resuelve el documento, no hay nada
     // que mostrar pero tampoco hay que salir de la pantalla.
     if (!activeTrip) {
@@ -132,6 +271,51 @@ export default function TripInProgressScreen() {
                 <Text style={styles.progressText}>
                     Paso {Math.max(flowIndex + 1, 1)} de {TRIP_FLOW.length}
                 </Text>
+            </View>
+
+            {/* Bloque 6b: mapa con las rutas dibujadas.
+                Se usan <Polyline /> de react-native-maps, no una imagen
+                estática: la ruta se redibuja cuando cambia el estado. */}
+            <View style={styles.mapBlock}>
+                <MapView
+                    ref={mapRef}
+                    style={styles.map}
+                    provider={PROVIDER_DEFAULT}
+                    showsUserLocation
+                    initialRegion={{
+                        latitude: origin?.latitude ?? 6.2442,
+                        longitude: origin?.longitude ?? -75.5812,
+                        latitudeDelta: 0.03,
+                        longitudeDelta: 0.03,
+                    }}
+                >
+                    {/* Tramo de recogida: conductor -> punto de recogida.
+                        Va solido porque es el trazado real por calles, no una
+                        aproximacion en linea recta. */}
+                    {pickupRoute.length >= 2 && (
+                        <Polyline
+                            coordinates={pickupRoute}
+                            strokeColor={PICKUP_COLOR}
+                            strokeWidth={4}
+                        />
+                    )}
+
+                    {/* Ruta del viaje: recogida -> destino */}
+                    {tripRoute.length >= 2 && (
+                        <Polyline
+                            coordinates={tripRoute}
+                            strokeColor={TRIP_COLOR}
+                            strokeWidth={4}
+                        />
+                    )}
+
+                    {origin && (
+                        <Marker coordinate={origin} title="Punto de recogida" pinColor="#16A34A" />
+                    )}
+                    {destination && (
+                        <Marker coordinate={destination} title="Destino" pinColor="#111827" />
+                    )}
+                </MapView>
             </View>
 
             <ScrollView
@@ -273,6 +457,13 @@ const styles = StyleSheet.create({
         color: '#6B7280',
     },
     scroll: {
+        flex: 1,
+    },
+    mapBlock: {
+        height: MAP_HEIGHT,
+        backgroundColor: '#E5E7EB',
+    },
+    map: {
         flex: 1,
     },
     scrollContent: {

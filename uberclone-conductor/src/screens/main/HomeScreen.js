@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #19
+// AI-assisted: see docs/AI_LOG.md #22
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useDriver } from '../../context/DriverContext';
@@ -20,6 +21,39 @@ import { useDriverLocation } from '../../hooks/useDriverLocation';
 import { useTripRequests } from '../../hooks/useTripRequests';
 import IncomingRequestScreen from '../trip/IncomingRequestScreen';
 import { calculateFare } from '../../config/pricing';
+import { fetchRoadRoute } from '../../services/routing';
+import { haversineKm } from '../../utils/geo';
+
+/**
+ * Texto de dirección de un punto, obtenido de SUS coordenadas.
+ *
+ * El simulador escribía direcciones de barrios inventados mientras las
+ * coordenadas eran otras, así que la tarjeta mostraba una dirección que no
+ * existía en ese lugar. Con geocodificación inversa la dirección y el punto
+ * son el mismo dato.
+ *
+ * @param {{latitude: number, longitude: number}} point
+ * @returns {Promise<string>}
+ */
+async function describePoint(point) {
+  try {
+    const results = await Location.reverseGeocodeAsync(point);
+    const place = results?.[0];
+    if (!place) return 'Dirección no disponible';
+
+    // En Android llega armada; en iOS se compone con las partes
+    if (place.formattedAddress) return place.formattedAddress;
+
+    const streetLine = [place.street, place.streetNumber].filter(Boolean).join(' ');
+    const zone = place.district || place.subregion || place.city;
+    const composed = [streetLine, zone].filter(Boolean).join(', ');
+
+    return composed || place.name || 'Dirección no disponible';
+  } catch (error) {
+    console.warn('No se pudo obtener la dirección del punto:', error.message);
+    return 'Dirección no disponible';
+  }
+}
 
 // Coordenadas iniciales por defecto (Medellín / Valle de Aburrá)
 const DEFAULT_COORDS = {
@@ -137,29 +171,69 @@ export default function HomeScreen({ navigation }) {
       const currentLat = location?.latitude || DEFAULT_COORDS.latitude;
       const currentLng = location?.longitude || DEFAULT_COORDS.longitude;
 
-      // Calcular tarifa de prueba con pricing.js
+      const driverPoint = { latitude: currentLat, longitude: currentLng };
+      const requestedOrigin = { latitude: currentLat + 0.003, longitude: currentLng + 0.002 };
+      const requestedDestination = { latitude: currentLat + 0.035, longitude: currentLng - 0.015 };
+
+      // Trazado real por calles. OSRM devuelve cientos de puntos, que es lo
+      // que permite dibujar el recorrido y no una linea recta entre dos
+      // coordenadas. Si el servicio no responde, queda el respaldo recto.
+      const tripRoute = await fetchRoadRoute(requestedOrigin, requestedDestination);
+
+      // OSRM pega el punto pedido a la via mas cercana, asi que el primer y
+      // el ultimo punto de la ruta son la recogida y el destino REALES.
+      // Se guardan esos, no los pedidos: si el marcador se dibujara en un
+      // punto y la ruta terminara en otro, la direccion de pantalla no
+      // corresponderia al trazado y quedaria un hueco en el mapa.
+      const origin = tripRoute ? tripRoute.coordinates[0] : requestedOrigin;
+      const destination = tripRoute
+        ? tripRoute.coordinates[tripRoute.coordinates.length - 1]
+        : requestedDestination;
+
+      // El tramo de recogida termina exactamente en el punto anterior
+      const pickupRoute = await fetchRoadRoute(driverPoint, origin);
+
+      // La distancia y la duracion salen de la ruta, no de numeros fijos:
+      // si el mapa dibuja un recorrido de 5.6 km, la tarifa debe ser de 5.6 km.
+      const straightKm = Math.round(haversineKm(origin, destination) * 10) / 10;
+      const distanceKm = tripRoute ? tripRoute.distanceKm : straightKm;
+
+      // Sin ruta real no inventamos duracion: la tarifa se calcula solo con
+      // la base y los kilometros, que si son datos medidos.
+      const durationMin = tripRoute ? tripRoute.durationMin : 0;
+
       const fareInfo = calculateFare({
-        distanceKm: 4.8,
-        durationMin: 14,
+        distanceKm,
+        durationMin,
         category: driverCategory,
       });
 
+      // Las direcciones se obtienen de las coordenadas de cada punto, una
+      // detras de otra: geocodificar en paralelo satura el servicio.
+      const originAddress = await describePoint(origin);
+      const destinationAddress = await describePoint(destination);
+
       // Crear documento en colección 'trips'
+      // origin y destination usan lat/lng, como define el esquema del spec.
       await addDoc(collection(db, 'trips'), {
         passengerId: 'p_demo_101',
         passengerName: 'Camila Ospina',
         origin: {
-          latitude: currentLat + 0.003,
-          longitude: currentLng + 0.002,
-          address: 'Calle 10 #43E-12, El Poblado',
+          lat: origin.latitude,
+          lng: origin.longitude,
+          address: originAddress,
         },
         destination: {
-          latitude: currentLat + 0.035,
-          longitude: currentLng - 0.015,
-          address: 'Carrera 43A #1-50, San Fernando Plaza',
+          lat: destination.latitude,
+          lng: destination.longitude,
+          address: destinationAddress,
         },
-        distanceKm: 4.8,
-        durationMin: 14,
+        // Trazado de ida y de recogida, guardado con el viaje para que la
+        // pantalla del viaje lo dibuje sin volver a pedirlo.
+        routeCoordinates: tripRoute ? tripRoute.coordinates : [origin, destination],
+        pickupRouteCoordinates: pickupRoute ? pickupRoute.coordinates : [driverPoint, origin],
+        distanceKm,
+        durationMin,
         category: driverCategory,
         fare: fareInfo.fare,
         commission: fareInfo.commission,
