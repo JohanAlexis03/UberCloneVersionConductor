@@ -238,6 +238,30 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "listo ya subi el push"
 - **Resumen de la respuesta:** Se construyó `HomeScreen.js` en `src/screens/main/`. Orquesta `useDriverLocation` para el seguimiento en tiempo real y rotación del marcador, `useDriver` para gobernar el switch de conexión (bloqueado con modal explicativo si el conductor está en estado `pending`), botón flotante de recentrado suave con `animateToRegion` y botón para simular carreras entrantes escribiendo en la colección `trips` de Firestore con tarifas puras de `pricing.js`. Se integró `HomeScreen` en `RootStackNavigator`.
 - **Qué se usó / modificó / descartó:** Se utilizó `react-native-maps` con `Marker` plano rotado por `heading`. Se descartó conectar al conductor si el backend reporta estado `pending`.
-- **Archivos y commit:** `uberclone-conductor/src/screens/main/HomeScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/ProfileScreen.js` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/HomeScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/ProfileScreen.js` — `[2d6075f]`
 - **Verificación:** Análisis sintáctico con Node sin errores. Verificación de regla de negocio: al intentar activar el switch con cuenta en `pending`, se despliega el modal explicativo y se previene la conexión.
 - **Aprendizaje:** El mapa debe ser un componente presentacional puro que consuma la ubicación ya filtrada por el custom hook. Acoplar la lógica del GPS o Firebase directamente dentro del render del mapa genera bloqueos en el hilo de UI (UI thread).
+
+### Entrada #17 (Fix del Commit 20/32)
+- **Fecha:** 2026-11-11
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Corregir el mapa que se renderizaba en negro en la pantalla de Inicio y ajustar los elementos flotantes a las zonas seguras reales del dispositivo (notch superior e indicador de inicio).
+- **Prompt:** "primero el mapa me sale en negro no se ve el fondo... adicional valida bien la safe zone en esa pantalla"
+- **Resumen de la respuesta:** Se reemplazó `StyleSheet.absoluteFillObject` en el estilo del mapa por `flex: 1`, de modo que el `MapView` ocupe la pantalla dentro del flujo normal de layout en lugar de depender de medidas absolutas. Se añadieron `loadingEnabled`, `loadingBackgroundColor` y `loadingIndicatorColor` como estado de carga visible, junto con los callbacks `onMapReady` y `onMapLoaded` para diagnóstico. En la misma pasada se sustituyó el `SafeAreaView` contenedor por un `View` simple con `useSafeAreaInsets`, aplicando `insets.top` a la tarjeta superior e `insets.bottom` a los botones flotantes.
+- **Qué se usó / modificó / descartó:** Se usó `useSafeAreaInsets` en lugar de `SafeAreaView` porque este último aplica padding a todo el contenido y el mapa debe llegar de borde a borde. Se descartó el posicionamiento absoluto del mapa: depende de que el contenedor resuelva sus medidas antes del primer layout y, cuando no ocurre, la vista queda con altura cero y se ve solo el color de fondo del contenedor.
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/HomeScreen.js` — `71a7d41`
+- **Verificación:** Bundle completo generado con Metro (`index.bundle?platform=ios&dev=true`) respondiendo HTTP 200 sobre 1574 módulos, sin errores de resolución. Auditoría estática con Babel sobre los 22 archivos: sin errores de sintaxis, imports sin usar, estilos huérfanos ni identificadores indefinidos. Verificación visual pendiente en Expo Go con los logs `[Mapa] vista nativa lista` y `[Mapa] teselas cargadas`.
+- **Aprendizaje:** Un componente nativo como el mapa no debe heredar el padding del área segura: lo que respeta el notch son los elementos flotantes que van encima, no el mapa. Y `absoluteFillObject` no es equivalente a `flex: 1` cuando el padre todavía no tiene medidas resueltas.
+
+### Entrada #18 (Navegación gobernada por sesión)
+- **Fecha:** 2026-11-11
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Reemplazar el `initialRouteName` estático por un conjunto de pantallas condicionado al estado de sesión, para que iniciar y cerrar sesión no dependan de navegación manual y no dejen al usuario en un callejón sin salida.
+- **Prompt:** "usemos esto A) Arreglar el navegador gobernado por sesión. En vez de initialRouteName estático, las pantallas cambian según driverId"
+- **Resumen de la respuesta:** `RootStackNavigator` ahora renderiza dos conjuntos de pantallas mutuamente excluyentes: si existe `driverId` registra `Home`, `Profile` y `Settings`; si no existe registra únicamente `Register`. Se eliminó la llamada a `navigation.popToTop()` en `SettingsScreen`, porque al borrarse la sesión el navegador descarta las pantallas privadas y cae solo en el registro.
+- **Qué se usó / modificó / descartó:** Se adoptó el patrón de autenticación de React Navigation basado en pantallas condicionales. Se descartó navegación imperativa (`navigate`, `reset`, `popToTop`) porque se desincroniza cuando el estado de sesión cambia por debajo del árbol de navegación.
+- **Archivos y commit:** `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/SettingsScreen.js` — `[PENDIENTE_HASH]`
+- **Verificación:** Auditoría estática con Babel sobre los 22 archivos sin hallazgos y bundle de Metro en HTTP 200. Prueba en Expo Go pendiente: cerrar sesión desde Ajustes debe llevar al registro sin recargar la app, y completar el registro debe entrar a Inicio sin navegación explícita.
+- **Aprendizaje:** `initialRouteName` se evalúa una sola vez, cuando el navegador se monta; no reacciona a cambios de estado. Cuando la sesión define qué pantallas existen, la navegación deja de ser una tarea y pasa a ser una consecuencia.

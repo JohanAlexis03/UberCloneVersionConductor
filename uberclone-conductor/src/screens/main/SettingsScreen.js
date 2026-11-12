@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #11
+// AI-assisted: see docs/AI_LOG.md #18
 import React, { useState } from 'react';
 import {
   View,
@@ -33,10 +33,9 @@ export default function SettingsScreen({ navigation }) {
           text: t('logout'),
           style: 'destructive',
           onPress: async () => {
+            // Al borrar la sesion, el navegador cambia solo a la pantalla
+            // de registro; no hace falta navegar a mano desde aqui.
             await logoutDriver();
-            if (navigation.canGoBack()) {
-              navigation.popToTop();
-            }
           },
         },
       ]
