@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -29,6 +29,8 @@ const DEFAULT_COORDS = {
 
 export default function HomeScreen({ navigation }) {
   const mapRef = useRef(null);
+  // Zonas seguras reales del dispositivo (notch arriba, indicador de inicio abajo)
+  const insets = useSafeAreaInsets();
 
   const { driver, isAvailable, setAvailability } = useDriver();
   const driverId = driver?.personalData?.idNumber || null;
@@ -153,8 +155,8 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* MAPA PRINCIPAL */}
+    <View style={styles.container}>
+      {/* MAPA PRINCIPAL: ocupa toda la pantalla, incluso bajo el notch */}
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -163,6 +165,11 @@ export default function HomeScreen({ navigation }) {
         showsUserLocation={false}
         showsCompass={false}
         showsMyLocationButton={false}
+        loadingEnabled
+        loadingBackgroundColor="#FFFFFF"
+        loadingIndicatorColor="#111827"
+        onMapReady={() => console.log('[Mapa] vista nativa lista')}
+        onMapLoaded={() => console.log('[Mapa] teselas cargadas')}
       >
         {location && (
           <Marker
@@ -182,8 +189,8 @@ export default function HomeScreen({ navigation }) {
         )}
       </MapView>
 
-      {/* BARRA SUPERIOR FLOTANTE */}
-      <View style={styles.topCard}>
+      {/* BARRA SUPERIOR FLOTANTE: baja por debajo del notch con el inset real */}
+      <View style={[styles.topCard, { top: insets.top + 8 }]}>
         <View style={styles.topRow}>
           <TouchableOpacity
             style={styles.profileBtn}
@@ -242,8 +249,8 @@ export default function HomeScreen({ navigation }) {
         )}
       </View>
 
-      {/* BOTONES FLOTANTES DE ACCIÓN RÁPIDA */}
-      <View style={styles.floatingControls}>
+      {/* BOTONES FLOTANTES: se elevan por encima del indicador de inicio */}
+      <View style={[styles.floatingControls, { bottom: insets.bottom + 16 }]}>
         {/* Botón Recentrar */}
         <TouchableOpacity
           style={styles.circleBtn}
@@ -311,17 +318,17 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#FFFFFF',
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    flex: 1,
   },
   carMarker: {
     backgroundColor: '#000000',
@@ -336,8 +343,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   topCard: {
-    marginHorizontal: 16,
-    marginTop: 8,
+    position: 'absolute',
+    left: 16,
+    right: 16,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 14,
@@ -425,7 +433,6 @@ const styles = StyleSheet.create({
   },
   floatingControls: {
     position: 'absolute',
-    bottom: 24,
     right: 16,
     left: 16,
     flexDirection: 'row',
