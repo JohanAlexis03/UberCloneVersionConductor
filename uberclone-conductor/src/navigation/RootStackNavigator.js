@@ -7,8 +7,10 @@ import HomeScreen from '../screens/main/HomeScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import TripInProgressScreen from '../screens/trip/TripInProgressScreen';
+import TripPaymentScreen from '../screens/trip/TripPaymentScreen';
 import { useDriver } from '../context/DriverContext';
 import { useTrip } from '../context/TripContext';
+import { TRIP_STATUS } from '../config/tripStatus';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,7 +30,7 @@ export default function RootStackNavigator() {
   const { driverId, loading } = useDriver();
   // El viaje activo manda sobre la pantalla: mientras haya uno, el
   // conductor no puede volver al inicio a recibir otra solicitud.
-  const { isOnTrip } = useTrip();
+  const { isOnTrip, activeTrip } = useTrip();
 
   if (loading) {
     return (
@@ -43,7 +45,19 @@ export default function RootStackNavigator() {
   if (!driverId) {
     screens = <Stack.Screen name="Register" component={RegisterTabsNavigator} />;
   } else if (isOnTrip) {
-    screens = <Stack.Screen name="TripInProgress" component={TripInProgressScreen} />;
+    // El viaje termina en `completed` y lo que sigue es cobrar, no seguir
+    // navegando. Por eso el escenario del viaje tiene dos pantallas: la del
+    // recorrido y la del cobro. `paid` se queda en la de cobro para mostrar
+    // el recibo; recién clearTrip devuelve al conductor al inicio.
+    const status = activeTrip?.status;
+    const isPaymentStage =
+      status === TRIP_STATUS.COMPLETED || status === TRIP_STATUS.PAID;
+
+    screens = isPaymentStage ? (
+      <Stack.Screen name="TripPayment" component={TripPaymentScreen} />
+    ) : (
+      <Stack.Screen name="TripInProgress" component={TripInProgressScreen} />
+    );
   } else {
     screens = (
       <>

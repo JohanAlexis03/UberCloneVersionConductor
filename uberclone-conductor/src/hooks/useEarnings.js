@@ -9,6 +9,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { getTripBalanceEffect } from '../utils/payment';
 
 /**
  * Custom Hook: useEarnings
@@ -20,7 +21,8 @@ import { db } from '../config/firebase';
  *    - Esta Semana (últimos 7 días)
  *    - Este Mes
  * 3. Calcular el saldo actual del conductor según regla de negocio oficial:
- *    Saldo = Σ(Ganancias por Pasarela) - Σ(Comisiones por Efectivo)
+ *    Saldo = Σ(Ganancias por Pasarela) - Σ(Comisiones por Efectivo),
+ *    contando solo los viajes en estado `paid`, es decir, los cobrados.
  * 4. Exponer refreshEarnings y el historial ordenado de carreras.
  *
  * @param {string|null} driverId - Cédula / ID del conductor
@@ -131,16 +133,12 @@ export function useEarnings(driverId) {
       const tip = Number(trip.tip) || 0;
       const driverEarnings = Number(trip.driverEarnings) || (fare - commission + tip);
       const tripDate = trip.completedDate || new Date();
-      const paymentMethod = String(trip.paymentMethod || 'cash').toLowerCase();
 
       // Regla de Negocio: Cálculo del Saldo Acumulado
-      // Pasarela: la plataforma retuvo el dinero, se lo debe al conductor (+driverEarnings).
-      // Efectivo: el conductor cobró todo en mano, debe la comisión del 20% a la plataforma (-commission).
-      if (paymentMethod === 'cash') {
-        balance -= commission;
-      } else {
-        balance += driverEarnings;
-      }
+      // La regla vive en utils/payment para poder probarla sin React. Solo
+      // cuenta lo cobrado: un viaje en `completed` todavía no está pagado y
+      // acreditarlo antes sería plata que no existe.
+      balance += getTripBalanceEffect(trip);
 
       // Agregación para Hoy
       if (tripDate >= startOfToday) {

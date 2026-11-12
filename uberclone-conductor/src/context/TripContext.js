@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #20
+// AI-assisted: see docs/AI_LOG.md #24
 import React, {
     createContext,
     useContext,
@@ -8,7 +8,11 @@ import React, {
 } from 'react';
 import { doc, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../config/firebase';
-import { canTransitionTo, getStatusLabel } from '../config/tripStatus';
+import {
+    canTransitionTo,
+    getStatusLabel,
+    TRIP_STATUS,
+} from '../config/tripStatus';
 
 const TripContext = createContext(null);
 
@@ -97,6 +101,89 @@ export function TripProvider({ children }) {
         [activeTripId, activeTrip]
     );
 
+    // Bloque 3b: confirmar el cobro en efectivo.
+    // No es un simple cambio de estado: además de `paid`, deja constancia de
+    // que el dinero se recibió. La comisión no se resta acá porque el saldo
+    // es un valor derivado (utils/payment): marcar el viaje como pagado es
+    // justamente lo que hace que esa comisión empiece a contar.
+    const confirmCashPayment = useCallback(
+        async () => {
+            if (!activeTripId || !activeTrip) return false;
+
+            // Un viaje con pasarela no se cobra a mano: la confirmación
+            // llega desde el servidor. Sin este guardo, tocar el botón de
+            // efectivo cerraría un viaje que nadie pagó.
+            const method = String(activeTrip.paymentMethod || 'cash').toLowerCase();
+            if (method !== 'cash') {
+                setError('El cobro con pasarela se confirma desde el servidor.');
+                return false;
+            }
+
+            if (!canTransitionTo(activeTrip.status, TRIP_STATUS.PAID)) {
+                setError(
+                    `Transición no permitida: ${activeTrip.status} → ${TRIP_STATUS.PAID}`
+                );
+                return false;
+            }
+
+            try {
+                await updateDoc(doc(db, 'trips', activeTripId), {
+                    status: TRIP_STATUS.PAID,
+                    paymentStatus: 'paid',
+                    paidAt: serverTimestamp(),
+                });
+                return true;
+            } catch (err) {
+                console.warn('Error confirmando el cobro:', err.message);
+                setError(err.message);
+                return false;
+            }
+        },
+        [activeTripId, activeTrip]
+    );
+
+    // Bloque 3c: confirmar el pago por pasarela digital (Mercado Pago / Stripe).
+    // Según docs/PROMPT_MAESTRO.md (Sección 3.4), cuando el viaje es por pasarela
+    // permite confirmar/cerrar el flujo de prueba actualizando paymentStatus,
+    // paymentId y status: 'paid', lo que acredita driverEarnings al saldo.
+    const confirmGatewayPayment = useCallback(
+        async (customPaymentId) => {
+            if (!activeTripId || !activeTrip) return false;
+
+            const method = String(activeTrip.paymentMethod || '').toLowerCase();
+            if (method === 'cash') {
+                setError('Este viaje es en efectivo; usa la confirmación de efectivo.');
+                return false;
+            }
+
+            if (!canTransitionTo(activeTrip.status, TRIP_STATUS.PAID)) {
+                setError(
+                    `Transición no permitida: ${activeTrip.status} → ${TRIP_STATUS.PAID}`
+                );
+                return false;
+            }
+
+            const paymentId =
+                customPaymentId ||
+                `${method}_${Date.now()}`;
+
+            try {
+                await updateDoc(doc(db, 'trips', activeTripId), {
+                    status: TRIP_STATUS.PAID,
+                    paymentStatus: 'paid',
+                    paymentId,
+                    paidAt: serverTimestamp(),
+                });
+                return true;
+            } catch (err) {
+                console.warn('Error confirmando el pago digital:', err.message);
+                setError(err.message);
+                return false;
+            }
+        },
+        [activeTripId, activeTrip]
+    );
+
     // Bloque 4: soltar el viaje (terminado, cancelado o pago confirmado)
     const clearTrip = useCallback(() => {
         setActiveTripId(null);
@@ -115,6 +202,8 @@ export function TripProvider({ children }) {
                 statusLabel: activeTrip ? getStatusLabel(activeTrip.status) : null,
                 startTrip,
                 advanceStatus,
+                confirmCashPayment,
+                confirmGatewayPayment,
                 clearTrip,
             }}
         >

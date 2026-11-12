@@ -251,7 +251,7 @@ export default function HomeScreen({ navigation }) {
         tip: 0,
         driverEarnings: fareInfo.driverEarnings,
         commissionRate: fareInfo.commissionRate,
-        paymentMethod: 'cash',
+        paymentMethod: simulated.paymentMethod || 'cash',
         paymentStatus: 'pending',
         status: 'requested',
         createdAt: serverTimestamp(),

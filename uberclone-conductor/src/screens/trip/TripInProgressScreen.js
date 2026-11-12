@@ -22,15 +22,9 @@ import {
     canTransitionTo,
 } from '../../config/tripStatus';
 import { formatCOP } from '../../config/pricing';
+import { getPaymentMethod } from '../../constants/paymentMethods';
 import { toLatLng, buildRouteCoordinates, haversineKm } from '../../utils/geo';
 import { fetchRoadRoute } from '../../services/routing';
-
-// Valores crudos de Firestore traducidos a texto para el conductor
-const PAYMENT_LABELS = {
-    cash: 'Efectivo',
-    mercadopago: 'Mercado Pago',
-    stripe: 'Tarjeta',
-};
 
 // Alto del mapa. Fijo para que las tarjetas de abajo siempre tengan espacio.
 const MAP_HEIGHT = 220;
@@ -50,9 +44,10 @@ const PICKUP_RECHECK_METERS = 150;
  * legales: eso vive en TripContext y en tripStatus. Esta pantalla solo
  * muestra el estado y pide el siguiente paso.
  *
- * Cuando el viaje termina en 'paid' no hay siguiente estado, así que el
- * botón deja de avanzar y libera al conductor con clearTrip(). Ese
- * clearTrip es justo lo que destraba el flujo: mientras no se llame, el
+ * Cuando el viaje queda en `completed`, el navegador desmonta esta pantalla
+ * y monta la de cobro. Acá solo queda el cierre de un viaje cancelado, que
+ * no tiene siguiente estado: el botón libera al conductor con clearTrip().
+ * Ese clearTrip es justo lo que destraba el flujo: mientras no se llame, el
  * conductor sigue ocupado y no le vuelven a entrar solicitudes.
  */
 export default function TripInProgressScreen() {
@@ -102,17 +97,16 @@ export default function TripInProgressScreen() {
     const canAdvance = Boolean(nextStatus) && canTransitionTo(status, nextStatus);
     const canCancel = status ? canTransitionTo(status, TRIP_STATUS.CANCELLED) : false;
 
-    const isFinished = status === TRIP_STATUS.PAID;
     const isCancelled = status === TRIP_STATUS.CANCELLED;
 
-    const actionLabel = isFinished || isCancelled
+    const actionLabel = isCancelled
         ? 'Volver a estar disponible'
         : NEXT_ACTION_LABELS[status] || 'Siguiente paso';
 
     const flowIndex = TRIP_FLOW.indexOf(status);
     const progress = flowIndex >= 0 ? ((flowIndex + 1) / TRIP_FLOW.length) * 100 : 0;
 
-    const paymentLabel = PAYMENT_LABELS[activeTrip?.paymentMethod] || activeTrip?.paymentMethod;
+    const paymentLabel = getPaymentMethod(activeTrip?.paymentMethod).label;
 
     // Puntos del viaje, ya normalizados para el mapa. Se memorizan para que
     // los efectos que los leen no se disparen en cada render.

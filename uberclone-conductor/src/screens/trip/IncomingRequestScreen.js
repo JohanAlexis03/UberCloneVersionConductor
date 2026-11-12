@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCOP } from '../../config/pricing';
+import { getPaymentMethod } from '../../constants/paymentMethods';
 
 // Tiempo total que dura una solicitud antes de rechazarse sola.
 // Debe coincidir con REQUEST_TIMEOUT_SECONDS del hook useTripRequests.
@@ -20,12 +21,6 @@ const CATEGORY_LABELS = {
     economy: 'Económico',
     xl: 'XL',
     premium: 'Premium',
-};
-
-const PAYMENT_LABELS = {
-    cash: 'Efectivo',
-    mercadopago: 'Mercado Pago',
-    stripe: 'Tarjeta',
 };
 
 /**
@@ -72,9 +67,7 @@ export default function IncomingRequestScreen({
     const isUrgent = seconds <= 5;
 
     const categoryLabel = CATEGORY_LABELS[trip.category] || trip.category;
-    const paymentLabel = PAYMENT_LABELS[trip.paymentMethod] || trip.paymentMethod;
-    const paymentIcon =
-        trip.paymentMethod === 'cash' ? 'cash-outline' : 'card-outline';
+    const paymentMethod = getPaymentMethod(trip.paymentMethod);
 
     return (
         <Modal visible transparent animationType="fade" onRequestClose={handleReject}>
@@ -152,9 +145,9 @@ export default function IncomingRequestScreen({
                         </View>
 
                         <View style={styles.metric}>
-                            <Ionicons name={paymentIcon} size={18} color="#6B7280" />
+                            <Ionicons name={paymentMethod.icon} size={18} color="#6B7280" />
                             <Text style={styles.metricValue} numberOfLines={1}>
-                                {paymentLabel}
+                                {paymentMethod.label}
                             </Text>
                             <Text style={styles.metricLabel}>Pago</Text>
                         </View>

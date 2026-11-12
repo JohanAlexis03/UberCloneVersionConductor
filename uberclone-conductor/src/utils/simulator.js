@@ -1,5 +1,10 @@
-// AI-assisted: see docs/AI_LOG.md #23
+// AI-assisted: see docs/AI_LOG.md #24
 import { haversineKm } from './geo';
+
+/**
+ * Métodos de pago oficiales según docs/PROMPT_MAESTRO.md (Sección 6).
+ */
+export const SIMULATED_PAYMENT_METHODS = ['cash', 'mercadopago', 'stripe'];
 
 /**
  * Generador de carreras simuladas para probar la app en Expo Go.
@@ -136,7 +141,8 @@ export function findNearestPlace(point) {
  * @param {() => number} [random] - Fuente de aleatoriedad, por defecto Math.random
  * @returns {{
  *   origin: {latitude: number, longitude: number, name: string|null},
- *   destination: {latitude: number, longitude: number, name: string|null}
+ *   destination: {latitude: number, longitude: number, name: string|null},
+ *   paymentMethod: 'cash'|'mercadopago'|'stripe'
  * }}
  */
 export function pickSimulatedTrip(driverPoint, random = Math.random) {
@@ -172,6 +178,12 @@ export function pickSimulatedTrip(driverPoint, random = Math.random) {
     const index = Math.min(Math.floor(random() * candidates.length), candidates.length - 1);
     const chosen = candidates[index];
 
+    const methodIndex = Math.min(
+        Math.floor(random() * SIMULATED_PAYMENT_METHODS.length),
+        SIMULATED_PAYMENT_METHODS.length - 1
+    );
+    const paymentMethod = SIMULATED_PAYMENT_METHODS[methodIndex];
+
     return {
         origin,
         destination: {
@@ -179,5 +191,6 @@ export function pickSimulatedTrip(driverPoint, random = Math.random) {
             longitude: chosen.longitude,
             name: chosen.name,
         },
+        paymentMethod,
     };
 }
