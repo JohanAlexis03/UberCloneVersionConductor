@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #14
+// AI-assisted: see docs/AI_LOG.md #20
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   collection,
@@ -23,16 +23,19 @@ const REQUEST_TIMEOUT_SECONDS = 15;
  * 4. Exponer acceptTrip y rejectTrip optimizados con useCallback.
  * 5. Limpieza estricta (clearInterval y unsubscribe) en el retorno de useEffect.
  *
+ * El hook NO guarda el viaje activo: eso vive en TripContext. Recibe `busy`
+ * para saber si debe escuchar o no, y asi existe una sola fuente de verdad.
+ *
  * @param {Object} options
  * @param {boolean} options.isAvailable - Disponibilidad del conductor
  * @param {string|null} options.driverId - Cédula / ID del conductor en Firestore
  * @param {string} [options.category='economy'] - Categoría del vehículo
+ * @param {boolean} [options.busy=false] - true si el conductor ya tiene un viaje
  * @returns {{
  *   incomingTrip: Object | null,
  *   timeLeft: number,
  *   acceptTrip: (tripId: string) => Promise<boolean>,
  *   rejectTrip: (tripId: string, reason?: string) => Promise<boolean>,
- *   activeTrip: Object | null,
  *   loading: boolean
  * }}
  */
@@ -40,9 +43,9 @@ export function useTripRequests({
   isAvailable = false,
   driverId = null,
   category = 'economy',
+  busy = false,
 } = {}) {
   const [incomingTrip, setIncomingTrip] = useState(null);
-  const [activeTrip, setActiveTrip] = useState(null);
   const [timeLeft, setTimeLeft] = useState(REQUEST_TIMEOUT_SECONDS);
   const [loading, setLoading] = useState(false);
 
@@ -94,8 +97,6 @@ export function useTripRequests({
   const acceptTrip = useCallback(
     async (tripId) => {
       clearTripTimer();
-
-      const tripToAccept = incomingTripRef.current;
       setIncomingTrip(null);
 
       if (!tripId || !driverId) return false;
@@ -109,13 +110,6 @@ export function useTripRequests({
           acceptedAt: serverTimestamp(),
         });
 
-        if (isMountedRef.current && tripToAccept && tripToAccept.id === tripId) {
-          setActiveTrip({
-            ...tripToAccept,
-            status: 'accepted',
-            driverId,
-          });
-        }
         return true;
       } catch (error) {
         console.error('Error al aceptar viaje:', error);
@@ -165,8 +159,9 @@ export function useTripRequests({
   useEffect(() => {
     isMountedRef.current = true;
 
-    // Si el conductor NO está disponible o no hay driverId, no escuchar solicitudes
-    if (!isAvailable || !driverId) {
+    // Si el conductor NO está disponible, no hay driverId o ya tiene un
+    // viaje en curso, no hay nada que escuchar
+    if (!isAvailable || !driverId || busy) {
       setIncomingTrip(null);
       clearTripTimer();
       return;
@@ -184,9 +179,6 @@ export function useTripRequests({
       tripsQuery,
       (snapshot) => {
         if (!isMountedRef.current) return;
-
-        // Si ya hay un viaje activo en curso, no aceptar nuevas solicitudes
-        if (activeTrip) return;
 
         const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -213,11 +205,10 @@ export function useTripRequests({
       unsubscribe();
       clearTripTimer();
     };
-  }, [isAvailable, driverId, category, activeTrip, clearTripTimer]);
+  }, [isAvailable, driverId, category, busy, clearTripTimer]);
 
   return {
     incomingTrip,
-    activeTrip,
     timeLeft,
     acceptTrip,
     rejectTrip,

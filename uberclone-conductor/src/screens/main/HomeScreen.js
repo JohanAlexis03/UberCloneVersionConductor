@@ -1,5 +1,5 @@
 // AI-assisted: see docs/AI_LOG.md #19
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { useDriver } from '../../context/DriverContext';
+import { useTrip } from '../../context/TripContext';
 import { useDriverLocation } from '../../hooks/useDriverLocation';
 import { useTripRequests } from '../../hooks/useTripRequests';
 import IncomingRequestScreen from '../trip/IncomingRequestScreen';
@@ -34,6 +35,8 @@ export default function HomeScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   const { driver, isAvailable, setAvailability } = useDriver();
+  // El viaje activo manda: si hay uno en curso, no se escuchan solicitudes
+  const { isOnTrip, startTrip } = useTrip();
   const driverId = driver?.personalData?.idNumber || null;
   const driverName = driver?.personalData?.fullName || 'Conductor';
   const driverCategory = driver?.vehicleData?.category || 'economy';
@@ -61,7 +64,21 @@ export default function HomeScreen({ navigation }) {
     isAvailable,
     driverId,
     category: driverCategory,
+    busy: isOnTrip,
   });
+
+  // Aceptar la solicitud: el hook confirma en Firestore y el contexto
+  // toma el control del viaje para el resto del flujo
+  const handleAcceptTrip = useCallback(
+    async (tripId) => {
+      const accepted = await acceptTrip(tripId);
+      if (accepted) {
+        startTrip(tripId);
+      }
+      return accepted;
+    },
+    [acceptTrip, startTrip]
+  );
 
   // Centrar mapa al recibir la primera posición GPS
   useEffect(() => {
@@ -331,7 +348,7 @@ export default function HomeScreen({ navigation }) {
         trip={incomingTrip}
         timeLeft={timeLeft}
         accepting={acceptingTrip}
-        onAccept={acceptTrip}
+        onAccept={handleAcceptTrip}
         onReject={rejectTrip}
       />
     </View>
