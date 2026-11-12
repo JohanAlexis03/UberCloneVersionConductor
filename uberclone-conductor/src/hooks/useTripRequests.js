@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #20
+// AI-assisted: see docs/AI_LOG.md #21
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   collection,
@@ -10,6 +10,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { pickNewestRequest } from '../utils/requestSelection';
 
 const REQUEST_TIMEOUT_SECONDS = 15;
 
@@ -51,13 +52,7 @@ export function useTripRequests({
 
   // Referencias para evitar fugas de memoria al desmontar
   const timerRef = useRef(null);
-  const incomingTripRef = useRef(null);
   const isMountedRef = useRef(true);
-
-  // Mantener la referencia actualizada para el timer sin recrear intervalos
-  useEffect(() => {
-    incomingTripRef.current = incomingTrip;
-  }, [incomingTrip]);
 
   // Limpiar el temporizador activo de forma segura
   const clearTripTimer = useCallback(() => {
@@ -123,7 +118,8 @@ export function useTripRequests({
     [clearTripTimer, driverId]
   );
 
-  // Efecto para gestionar el temporizador regresivo de 15 segundos
+  // Bloque 1: el reloj de 15 segundos.
+  // Solo corre mientras hay una solicitud dibujada en pantalla.
   useEffect(() => {
     if (!incomingTrip) {
       clearTripTimer();
@@ -134,16 +130,7 @@ export function useTripRequests({
     setTimeLeft(REQUEST_TIMEOUT_SECONDS);
 
     timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // Temporizador vencido: rechazo automático por timeout
-          if (incomingTripRef.current) {
-            rejectTrip(incomingTripRef.current.id, 'timeout');
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
+      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
 
     // CLEANUP OBLIGATORIO: Detiene el reloj si el viaje cambia, se acepta, o se desmonta
@@ -153,7 +140,16 @@ export function useTripRequests({
         timerRef.current = null;
       }
     };
-  }, [incomingTrip, clearTripTimer, rejectTrip]);
+  }, [incomingTrip, clearTripTimer]);
+
+  // Bloque 2: cuando el contador llega a cero, la solicitud se rechaza sola.
+  // Va aparte del intervalo a propósito: rechazar escribe en Firestore, y un
+  // efecto secundario dentro de setTimeLeft se ejecutaría dos veces si React
+  // vuelve a invocar el actualizador.
+  useEffect(() => {
+    if (!incomingTrip || timeLeft > 0) return;
+    rejectTrip(incomingTrip.id, 'timeout');
+  }, [incomingTrip, timeLeft, rejectTrip]);
 
   // Efecto para escuchar solicitudes en Firestore (onSnapshot)
   useEffect(() => {
@@ -182,17 +178,16 @@ export function useTripRequests({
 
         const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-        // Filtrar viaje no rechazado previamente por este conductor
-        const candidate = docs.find((t) => t.rejectedByDriverId !== driverId);
+        // La solicitud más reciente, no la primera que devuelva Firestore:
+        // el orden de entrega es por ID de documento, que es aleatorio.
+        const candidate = pickNewestRequest(docs, driverId);
 
-        if (candidate) {
-          // Solo si es una solicitud nueva la cargamos
-          if (!incomingTripRef.current || incomingTripRef.current.id !== candidate.id) {
-            setIncomingTrip(candidate);
-          }
-        } else {
-          setIncomingTrip(null);
-        }
+        // Si sigue siendo la misma solicitud devolvemos el mismo objeto.
+        // Con un objeto nuevo en cada instantánea, el efecto del reloj se
+        // volvería a ejecutar y reiniciaría los 15 segundos.
+        setIncomingTrip((prev) =>
+          prev && candidate && prev.id === candidate.id ? prev : candidate
+        );
       },
       (error) => {
         console.warn('Error en listener de viajes en tiempo real:', error.message);

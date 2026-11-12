@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #18
+// AI-assisted: see docs/AI_LOG.md #21
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -6,27 +6,51 @@ import RegisterTabsNavigator from './RegisterTabsNavigator';
 import HomeScreen from '../screens/main/HomeScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
+import TripInProgressScreen from '../screens/trip/TripInProgressScreen';
 import { useDriver } from '../context/DriverContext';
+import { useTrip } from '../context/TripContext';
 
 const Stack = createNativeStackNavigator();
 
 /**
- * Navegacion gobernada por la sesion.
+ * Navegacion gobernada por el estado de la app.
  *
- * Las pantallas disponibles dependen de si hay conductor activo:
- * sin sesion solo existe el registro; con sesion solo existe la app.
- * Asi el inicio y el cierre de sesion no dependen de navegacion manual
- * (navigate / reset / popToTop), que se desincroniza cuando el estado
- * cambia por debajo.
+ * Tres escenarios, y cada uno tiene sus propias pantallas:
+ * - sin sesion: solo existe el registro;
+ * - con sesion y sin viaje: la app normal;
+ * - con sesion y viaje activo: solo el viaje.
+ *
+ * Asi ni el inicio de sesion, ni el fin del viaje dependen de navegacion
+ * manual (navigate / reset / popToTop), que se desincroniza cuando el
+ * estado cambia por debajo.
  */
 export default function RootStackNavigator() {
   const { driverId, loading } = useDriver();
+  // El viaje activo manda sobre la pantalla: mientras haya uno, el
+  // conductor no puede volver al inicio a recibir otra solicitud.
+  const { isOnTrip } = useTrip();
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#000000" />
       </View>
+    );
+  }
+
+  let screens;
+
+  if (!driverId) {
+    screens = <Stack.Screen name="Register" component={RegisterTabsNavigator} />;
+  } else if (isOnTrip) {
+    screens = <Stack.Screen name="TripInProgress" component={TripInProgressScreen} />;
+  } else {
+    screens = (
+      <>
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+      </>
     );
   }
 
@@ -37,15 +61,7 @@ export default function RootStackNavigator() {
         animation: 'slide_from_right',
       }}
     >
-      {driverId ? (
-        <>
-          <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Profile" component={ProfileScreen} />
-          <Stack.Screen name="Settings" component={SettingsScreen} />
-        </>
-      ) : (
-        <Stack.Screen name="Register" component={RegisterTabsNavigator} />
-      )}
+      {screens}
     </Stack.Navigator>
   );
 }
