@@ -358,14 +358,25 @@ export default function HomeScreen({ navigation }) {
 
       {/* BOTONES FLOTANTES: se elevan por encima del indicador de inicio */}
       <View style={[styles.floatingControls, { bottom: insets.bottom + 16 }]}>
-        {/* Botón Recentrar */}
-        <TouchableOpacity
-          style={styles.circleBtn}
-          onPress={handleRecenter}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="locate" size={24} color="#111827" />
-        </TouchableOpacity>
+        <View style={styles.leftFloatingRow}>
+          {/* Botón Recentrar */}
+          <TouchableOpacity
+            style={styles.circleBtn}
+            onPress={handleRecenter}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="locate" size={24} color="#111827" />
+          </TouchableOpacity>
+
+          {/* Botón Historial de Carreras */}
+          <TouchableOpacity
+            style={[styles.circleBtn, { marginLeft: 10 }]}
+            onPress={() => navigation.navigate('History')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="time-outline" size={24} color="#111827" />
+          </TouchableOpacity>
+        </View>
 
         {/* Botón Simular Solicitud (para testing) */}
         <TouchableOpacity
@@ -553,6 +564,10 @@ const styles = StyleSheet.create({
     left: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  leftFloatingRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
   circleBtn: {

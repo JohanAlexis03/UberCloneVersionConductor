@@ -375,6 +375,18 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "c449f8a" — continuación al Commit #28 (Stripe PaymentSheet test configuration).
 - **Resumen de la respuesta:** Se creó `backend/routes/stripe.js` que utiliza el SDK oficial `stripe` con `STRIPE_SECRET_KEY` de `backend/.env` para crear un `PaymentIntent` en COP (`amount * 100`, `currency: 'cop'`) y devolver `clientSecret` y `paymentId` (con respaldo sandbox en `/api/payments/stripe/sandbox-checkout`). En el cliente se añadió `processStripePayment` en `src/services/payments.js` y se conectó en `TripPaymentScreen.js`.
 - **Qué se usó / modificó / descartó:** Se usó el SDK de `stripe` en el backend manteniendo `STRIPE_SECRET_KEY` exclusivamente en `backend/.env`. Se descartó incluir llaves secretas (`sk_test_...`) en el código móvil.
-- **Archivos y commit:** `backend/routes/stripe.js`, `backend/server.js`, `uberclone-conductor/src/services/payments.js`, `uberclone-conductor/src/screens/trip/TripPaymentScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `backend/routes/stripe.js`, `backend/server.js`, `uberclone-conductor/src/services/payments.js`, `uberclone-conductor/src/screens/trip/TripPaymentScreen.js`, `docs/AI_LOG.md` — `eb2be73`
 - **Verificación:** Prueba en memoria del endpoint `POST /api/payments/stripe/payment-intent` comprobando retorno HTTP 200 con `paymentId`, `clientSecret` y `checkoutUrl`, y validación de sintaxis con `@babel/parser`.
 - **Aprendizaje:** Stripe exige expresar la moneda en su unidad mínima (centavos), por lo que un monto entero en COP debe multiplicarse por 100 en el servidor antes de crear el `PaymentIntent`, entregando al cliente únicamente el `clientSecret` efímero.
+
+### Entrada #28 (Commit 29/32)
+- **Fecha:** 2026-11-12
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar la pantalla de Historial de Carreras (`HistoryScreen.js`) utilizando `FlatList` paginada a 20 viajes por carga (`HISTORY_PAGE_SIZE = 20`) y componente visual de estado vacío (`ListEmptyComponent`).
+- **Prompt:** "eb2be73" — continuación al Commit #29 (paginated FlatList with 20 trips per batch).
+- **Resumen de la respuesta:** Se construyó `src/screens/main/HistoryScreen.js` conectada al hook `useEarnings` para listar las carreras completadas/pagadas ordenadas de la más reciente a la más antigua. La `FlatList` pagina de a 20 elementos mediante `onEndReached` y un botón explícito en `ListFooterComponent`, incluye `RefreshControl` y renderiza un componente visual en `ListEmptyComponent` cuando no existen viajes. Se registró la ruta `History` en `RootStackNavigator.js` y un acceso rápido en `HomeScreen.js`.
+- **Qué se usó / modificó / descartó:** Se usó `FlatList` con `maxToRenderPerBatch={20}`, `onEndReached`, `useCallback` en `renderItem` y `keyExtractor`, y `useMemo` para el corte paginado. Se descartó `ScrollView` con `.map()` porque monta todos los elementos en memoria simultáneamente.
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/HistoryScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/HomeScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Verificación:** Validación estática con `@babel/parser` sobre los 3 archivos modificados y comprobación de paginación a lotes de 20 elementos y estado vacío.
+- **Aprendizaje:** La virtualización de `FlatList` combinada con paginación incremental de 20 elementos evita cuellos de botella en el hilo de UI de React Native cuando el historial del conductor crece a cientos de carreras.
