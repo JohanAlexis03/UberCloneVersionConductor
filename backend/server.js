@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #26
+// AI-assisted: see docs/AI_LOG.md #27
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
@@ -71,7 +71,9 @@ app.get('/health', (_req, res) => {
 
 // Rutas de pasarelas de pago
 const mercadopagoRoutes = require('./routes/mercadopago');
+const stripeRoutes = require('./routes/stripe');
 app.use('/api/payments/mercadopago', mercadopagoRoutes);
+app.use('/api/payments/stripe', stripeRoutes);
 
 // Manejador de rutas no encontradas
 app.use((req, res) => {

@@ -363,6 +363,18 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "7f81542 listo" — continuación al Commit #27 (Mercado Pago Checkout Pro).
 - **Resumen de la respuesta:** Se creó `backend/routes/mercadopago.js` usando el SDK oficial `mercadopago` (`MercadoPagoConfig` y `Preference`) para generar preferencias en COP con `MP_ACCESS_TOKEN` de `backend/.env`, más una vista de respaldo `/sandbox-checkout` para pruebas locales sin token. En el cliente se creó `src/services/payments.js` (`processMercadoPagoCheckout`), que invoca al backend, abre la URL de Checkout Pro y entrega el `paymentId` a `TripPaymentScreen` para actualizar el viaje a `status: 'paid'`.
 - **Qué se usó / modificó / descartó:** Se usó el SDK v2 de `mercadopago` en el servidor y `Linking.openURL` en el cliente para abrir el Checkout Pro sin requerir módulos nativos fuera de Expo Go. Se descartó exponer `MP_ACCESS_TOKEN` en la app móvil.
-- **Archivos y commit:** `backend/routes/mercadopago.js`, `backend/server.js`, `uberclone-conductor/src/services/payments.js`, `uberclone-conductor/src/screens/trip/TripPaymentScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `backend/routes/mercadopago.js`, `backend/server.js`, `uberclone-conductor/src/services/payments.js`, `uberclone-conductor/src/screens/trip/TripPaymentScreen.js`, `docs/AI_LOG.md` — `c449f8a`
 - **Verificación:** Prueba de integración contra el router de Express verificando creación de preferencia, respuesta JSON con `preferenceId`, `paymentId` y `checkoutUrl`, y parseo estático con Babel en el cliente.
 - **Aprendizaje:** El servidor actúa como intermediario de confianza: recibe los datos públicos del viaje (`tripId`, `amount`, `title`), firma la petición ante Mercado Pago con su credencial privada y devuelve al cliente únicamente la URL de checkout y el identificador de pago.
+
+### Entrada #27 (Commit 28/32)
+- **Fecha:** 2026-11-12
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Integrar Stripe (`PaymentIntent` / `PaymentSheet` en modo de prueba) mediante el endpoint `POST /api/payments/stripe/payment-intent` en `backend/routes/stripe.js` y conectarlo con `src/services/payments.js` y `TripPaymentScreen.js`.
+- **Prompt:** "c449f8a" — continuación al Commit #28 (Stripe PaymentSheet test configuration).
+- **Resumen de la respuesta:** Se creó `backend/routes/stripe.js` que utiliza el SDK oficial `stripe` con `STRIPE_SECRET_KEY` de `backend/.env` para crear un `PaymentIntent` en COP (`amount * 100`, `currency: 'cop'`) y devolver `clientSecret` y `paymentId` (con respaldo sandbox en `/api/payments/stripe/sandbox-checkout`). En el cliente se añadió `processStripePayment` en `src/services/payments.js` y se conectó en `TripPaymentScreen.js`.
+- **Qué se usó / modificó / descartó:** Se usó el SDK de `stripe` en el backend manteniendo `STRIPE_SECRET_KEY` exclusivamente en `backend/.env`. Se descartó incluir llaves secretas (`sk_test_...`) en el código móvil.
+- **Archivos y commit:** `backend/routes/stripe.js`, `backend/server.js`, `uberclone-conductor/src/services/payments.js`, `uberclone-conductor/src/screens/trip/TripPaymentScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Verificación:** Prueba en memoria del endpoint `POST /api/payments/stripe/payment-intent` comprobando retorno HTTP 200 con `paymentId`, `clientSecret` y `checkoutUrl`, y validación de sintaxis con `@babel/parser`.
+- **Aprendizaje:** Stripe exige expresar la moneda en su unidad mínima (centavos), por lo que un monto entero en COP debe multiplicarse por 100 en el servidor antes de crear el `PaymentIntent`, entregando al cliente únicamente el `clientSecret` efímero.
