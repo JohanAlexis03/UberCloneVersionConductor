@@ -300,11 +300,19 @@ export default function HomeScreen({ navigation }) {
       <View style={[styles.topCard, { top: insets.top + 8 }]}>
         <View style={styles.topRow}>
           <TouchableOpacity
+            style={styles.menuBtn}
+            onPress={() => navigation.openDrawer?.()}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="menu" size={24} color="#111827" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.profileBtn}
             onPress={() => navigation.navigate('Profile')}
             activeOpacity={0.8}
           >
-            <Ionicons name="person-circle" size={38} color="#111827" />
+            <Ionicons name="person-circle" size={36} color="#111827" />
             <View style={styles.nameContainer}>
               <Text style={styles.greetingText}>Hola,</Text>
               <Text style={styles.driverNameText} numberOfLines={1}>
@@ -375,6 +383,15 @@ export default function HomeScreen({ navigation }) {
             activeOpacity={0.8}
           >
             <Ionicons name="time-outline" size={24} color="#111827" />
+          </TouchableOpacity>
+
+          {/* Botón Mis Ganancias */}
+          <TouchableOpacity
+            style={[styles.circleBtn, { marginLeft: 10 }]}
+            onPress={() => navigation.navigate('Earnings')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="wallet-outline" size={24} color="#111827" />
           </TouchableOpacity>
         </View>
 
@@ -486,6 +503,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  menuBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
   },
   profileBtn: {
     flexDirection: 'row',

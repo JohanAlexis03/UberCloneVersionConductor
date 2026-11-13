@@ -399,6 +399,18 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "6152579" — continuación al Commit #30 (date and payment method filters + TripDetailScreen).
 - **Resumen de la respuesta:** Se agregaron dos barras de filtros horizontales en `HistoryScreen.js` que recalculan la lista con `useMemo` sin repetir lecturas a Firestore y reinician el lote paginado a 20 elementos. Se creó `src/screens/trip/TripDetailScreen.js`, que dibuja el recorrido guardado (`routeCoordinates`) sobre `MapView` con `<Polyline />` y marcadores de origen/destino, junto al desglose financiero y referencia de pago.
 - **Qué se usó / modificó / descartó:** Se usó `<Polyline />` de `react-native-maps` con `fitToCoordinates` y `useMemo` para el filtrado combinado en memoria. Se descartó Google Static Maps cumpliendo la restricción técnica del proyecto.
-- **Archivos y commit:** `uberclone-conductor/src/screens/main/HistoryScreen.js`, `uberclone-conductor/src/screens/trip/TripDetailScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/HistoryScreen.js`, `uberclone-conductor/src/screens/trip/TripDetailScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `docs/AI_LOG.md` — `3f9313e`
 - **Verificación:** Validación estática con `@babel/parser` sobre `HistoryScreen.js`, `TripDetailScreen.js` y `RootStackNavigator.js`.
 - **Aprendizaje:** Filtrar en cliente con `useMemo` sobre la colección ya ordenada permite combinar criterios de período y método de pago en tiempo constante de interfaz sin requerir múltiples índices compuestos en Firestore.
+
+### Entrada #30 (Commit 31/32)
+- **Fecha:** 2026-11-12
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Construir el Panel de Ganancias (`EarningsScreen.js`) con desglose de Hoy, Semana, Mes y Saldo Acumulado, e integrar el `MainDrawerNavigator.js` para completar la jerarquía de navegación combinada (Tabs + Drawer + Stack).
+- **Prompt:** "3f9313e" — continuación al Commit #31 (Earnings dashboard + MainDrawerNavigator).
+- **Resumen de la respuesta:** Se implementó `src/screens/main/EarningsScreen.js` consumiendo `useEarnings` para mostrar el saldo acumulado (diferenciando saldo a favor en verde vs deuda de comisiones por efectivo en rojo), selector de período (Hoy, Semana, Mes) y las 6 métricas financieras oficiales. Además se creó `src/navigation/MainDrawerNavigator.js` con las 5 opciones del menú principal (`Home`, `Profile`, `History`, `Earnings`, `Settings`) y se conectó en `RootStackNavigator.js` y `HomeScreen.js`.
+- **Qué se usó / modificó / descartó:** Se usó `@react-navigation/drawer` combinado con Native Stack y Bottom Tabs cumpliendo la arquitectura de navegación de la Sección 1, y `useEarnings` con `useMemo` para todas las agregaciones financieras.
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/EarningsScreen.js`, `uberclone-conductor/src/navigation/MainDrawerNavigator.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/HomeScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Verificación:** Validación estática con `@babel/parser` sobre `EarningsScreen.js`, `MainDrawerNavigator.js`, `RootStackNavigator.js` y `HomeScreen.js`.
+- **Aprendizaje:** La separación entre ganancia neta del período y saldo acumulado en cuenta permite reflejar con exactitud contable que los viajes en efectivo ya fueron cobrados en mano por el conductor y descuentan su comisión del 20% contra el saldo de pasarela.
