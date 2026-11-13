@@ -1,5 +1,6 @@
-// AI-assisted: see docs/AI_LOG.md #25
-require('dotenv').config();
+// AI-assisted: see docs/AI_LOG.md #26
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const express = require('express');
 const cors = require('cors');
 
@@ -47,6 +48,9 @@ function validatePaymentPayload(body = {}) {
   };
 }
 
+// Exportar antes de requerir rutas hijas para evitar dependencia circular en CommonJS
+module.exports = { app, validatePaymentPayload };
+
 /**
  * GET /health
  * Endpoint de diagnóstico para verificar que el servidor está activo
@@ -64,6 +68,10 @@ app.get('/health', (_req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Rutas de pasarelas de pago
+const mercadopagoRoutes = require('./routes/mercadopago');
+app.use('/api/payments/mercadopago', mercadopagoRoutes);
 
 // Manejador de rutas no encontradas
 app.use((req, res) => {
@@ -87,5 +95,3 @@ if (require.main === module) {
     console.log(`[Backend] Servidor de pagos escuchando en http://localhost:${PORT}`);
   });
 }
-
-module.exports = { app, validatePaymentPayload };

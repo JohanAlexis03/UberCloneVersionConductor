@@ -351,6 +351,18 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "eso explicamelo el paso que vamos a hacer asi tal cual o un poco mas especifico, porque es importante como se creara, y si entiendo correctamente. continuemos con eos"
 - **Resumen de la respuesta:** Se creó la carpeta `backend/` con `package.json`, `.env.example` y `server.js`. El servidor expone `GET /health` informando el estado de las credenciales sin revelar llaves privadas, configura CORS y `express.json()`, y exporta `validatePaymentPayload` para validar que `tripId`, `amount` (entero positivo en COP) y `paymentMethod` (`mercadopago` o `stripe`) cumplan el contrato antes de invocar cualquier SDK de pasarela.
 - **Qué se usó / modificó / descartó:** Se usó `express`, `cors` y `dotenv` en un módulo separado fuera de `uberclone-conductor/` para garantizar que `MP_ACCESS_TOKEN` y `STRIPE_SECRET_KEY` jamás sean empaquetados por Metro dentro del bundle móvil. Se descartó colocar llaves privadas en variables `EXPO_PUBLIC_*`.
-- **Archivos y commit:** `backend/package.json`, `backend/.env.example`, `backend/server.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `backend/package.json`, `backend/.env.example`, `backend/server.js`, `docs/AI_LOG.md` — `7f81542`
 - **Verificación:** Verificación de sintaxis y pruebas unitarias con Node sobre `validatePaymentPayload` (rechazo de montos inválidos, `tripId` vacío o métodos desconocidos, y normalización de enteros COP).
 - **Aprendizaje:** Separar el backend en su propio directorio y `package.json` establece una frontera física de seguridad: lo que vive en `backend/.env` solo se lee en el servidor Node.js, impidiendo que un atacante extraiga credenciales privadas al descompilar la aplicación móvil.
+
+### Entrada #26 (Commit 27/32)
+- **Fecha:** 2026-11-12
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Integrar Mercado Pago Checkout Pro en modo de prueba conectando el endpoint `POST /api/payments/mercadopago/preference` en `backend/` con el servicio `src/services/payments.js` y la pantalla `TripPaymentScreen.js`.
+- **Prompt:** "7f81542 listo" — continuación al Commit #27 (Mercado Pago Checkout Pro).
+- **Resumen de la respuesta:** Se creó `backend/routes/mercadopago.js` usando el SDK oficial `mercadopago` (`MercadoPagoConfig` y `Preference`) para generar preferencias en COP con `MP_ACCESS_TOKEN` de `backend/.env`, más una vista de respaldo `/sandbox-checkout` para pruebas locales sin token. En el cliente se creó `src/services/payments.js` (`processMercadoPagoCheckout`), que invoca al backend, abre la URL de Checkout Pro y entrega el `paymentId` a `TripPaymentScreen` para actualizar el viaje a `status: 'paid'`.
+- **Qué se usó / modificó / descartó:** Se usó el SDK v2 de `mercadopago` en el servidor y `Linking.openURL` en el cliente para abrir el Checkout Pro sin requerir módulos nativos fuera de Expo Go. Se descartó exponer `MP_ACCESS_TOKEN` en la app móvil.
+- **Archivos y commit:** `backend/routes/mercadopago.js`, `backend/server.js`, `uberclone-conductor/src/services/payments.js`, `uberclone-conductor/src/screens/trip/TripPaymentScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Verificación:** Prueba de integración contra el router de Express verificando creación de preferencia, respuesta JSON con `preferenceId`, `paymentId` y `checkoutUrl`, y parseo estático con Babel en el cliente.
+- **Aprendizaje:** El servidor actúa como intermediario de confianza: recibe los datos públicos del viaje (`tripId`, `amount`, `title`), firma la petición ante Mercado Pago con su credencial privada y devuelve al cliente únicamente la URL de checkout y el identificador de pago.

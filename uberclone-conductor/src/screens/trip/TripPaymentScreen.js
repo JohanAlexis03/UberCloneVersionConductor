@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #24
+// AI-assisted: see docs/AI_LOG.md #26
 import React, { useCallback, useMemo, useState } from 'react';
 import {
     View,
@@ -15,6 +15,7 @@ import { TRIP_STATUS } from '../../config/tripStatus';
 import { formatCOP } from '../../config/pricing';
 import { getPaymentBreakdown } from '../../utils/payment';
 import { getPaymentMethod } from '../../constants/paymentMethods';
+import { processMercadoPagoCheckout } from '../../services/payments';
 
 /**
  * Pantalla de cobro y cierre del viaje (`completed` -> `paid`).
@@ -72,12 +73,30 @@ export default function TripPaymentScreen() {
     const handleConfirmGateway = useCallback(async () => {
         setLocalError(null);
         setWorking(true);
-        const ok = await confirmGatewayPayment();
-        if (!ok) {
-            setLocalError('No se pudo registrar el pago digital. Revisa tu conexión.');
+
+        try {
+            let paymentId = null;
+            const method = String(activeTrip?.paymentMethod || '').toLowerCase();
+
+            if (method === 'mercadopago') {
+                const mpResult = await processMercadoPagoCheckout({
+                    tripId: activeTrip.id,
+                    amount: breakdown.totalToCollect,
+                    title: `Viaje UberClone - ${activeTrip.destination?.address || 'Destino'}`,
+                });
+                paymentId = mpResult.paymentId;
+            }
+
+            const ok = await confirmGatewayPayment(paymentId);
+            if (!ok) {
+                setLocalError('No se pudo registrar el pago digital. Revisa tu conexión.');
+            }
+        } catch (err) {
+            setLocalError(err.message || 'Error al procesar el pago con la pasarela.');
+        } finally {
+            setWorking(false);
         }
-        setWorking(false);
-    }, [confirmGatewayPayment]);
+    }, [activeTrip, breakdown.totalToCollect, confirmGatewayPayment]);
 
     // Bloque 6: cerrar el viaje y volver a estar disponible.
     // Mientras no se llame a clearTrip el conductor sigue ocupado y no le
