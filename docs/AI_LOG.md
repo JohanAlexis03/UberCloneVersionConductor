@@ -387,6 +387,18 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "eb2be73" — continuación al Commit #29 (paginated FlatList with 20 trips per batch).
 - **Resumen de la respuesta:** Se construyó `src/screens/main/HistoryScreen.js` conectada al hook `useEarnings` para listar las carreras completadas/pagadas ordenadas de la más reciente a la más antigua. La `FlatList` pagina de a 20 elementos mediante `onEndReached` y un botón explícito en `ListFooterComponent`, incluye `RefreshControl` y renderiza un componente visual en `ListEmptyComponent` cuando no existen viajes. Se registró la ruta `History` en `RootStackNavigator.js` y un acceso rápido en `HomeScreen.js`.
 - **Qué se usó / modificó / descartó:** Se usó `FlatList` con `maxToRenderPerBatch={20}`, `onEndReached`, `useCallback` en `renderItem` y `keyExtractor`, y `useMemo` para el corte paginado. Se descartó `ScrollView` con `.map()` porque monta todos los elementos en memoria simultáneamente.
-- **Archivos y commit:** `uberclone-conductor/src/screens/main/HistoryScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/HomeScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/HistoryScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/HomeScreen.js`, `docs/AI_LOG.md` — `6152579`
 - **Verificación:** Validación estática con `@babel/parser` sobre los 3 archivos modificados y comprobación de paginación a lotes de 20 elementos y estado vacío.
 - **Aprendizaje:** La virtualización de `FlatList` combinada con paginación incremental de 20 elementos evita cuellos de botella en el hilo de UI de React Native cuando el historial del conductor crece a cientos de carreras.
+
+### Entrada #29 (Commit 30/32)
+- **Fecha:** 2026-11-12
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Añadir filtros combinables por fecha (`Todos`, `Hoy`, `Semana`, `Mes`) y método de pago (`Todos`, `Efectivo`, `Mercado Pago`, `Stripe`) en `HistoryScreen.js`, y construir `TripDetailScreen.js` con renderizado de ruta mediante `<Polyline />`.
+- **Prompt:** "6152579" — continuación al Commit #30 (date and payment method filters + TripDetailScreen).
+- **Resumen de la respuesta:** Se agregaron dos barras de filtros horizontales en `HistoryScreen.js` que recalculan la lista con `useMemo` sin repetir lecturas a Firestore y reinician el lote paginado a 20 elementos. Se creó `src/screens/trip/TripDetailScreen.js`, que dibuja el recorrido guardado (`routeCoordinates`) sobre `MapView` con `<Polyline />` y marcadores de origen/destino, junto al desglose financiero y referencia de pago.
+- **Qué se usó / modificó / descartó:** Se usó `<Polyline />` de `react-native-maps` con `fitToCoordinates` y `useMemo` para el filtrado combinado en memoria. Se descartó Google Static Maps cumpliendo la restricción técnica del proyecto.
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/HistoryScreen.js`, `uberclone-conductor/src/screens/trip/TripDetailScreen.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Verificación:** Validación estática con `@babel/parser` sobre `HistoryScreen.js`, `TripDetailScreen.js` y `RootStackNavigator.js`.
+- **Aprendizaje:** Filtrar en cliente con `useMemo` sobre la colección ya ordenada permite combinar criterios de período y método de pago en tiempo constante de interfaz sin requerir múltiples índices compuestos en Firestore.

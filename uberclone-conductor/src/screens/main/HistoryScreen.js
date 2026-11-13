@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #28
+// AI-assisted: see docs/AI_LOG.md #29
 import React, { useState, useMemo, useCallback } from 'react';
 import {
     View,
@@ -8,6 +8,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
+    ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,6 +23,20 @@ import { getStatusLabel } from '../../config/tripStatus';
  * 20 viajes por carga mediante FlatList + onEndReached / botón Cargar más.
  */
 export const HISTORY_PAGE_SIZE = 20;
+
+const DATE_FILTERS = [
+    { key: 'all', label: 'Todos' },
+    { key: 'today', label: 'Hoy' },
+    { key: 'week', label: 'Semana' },
+    { key: 'month', label: 'Mes' },
+];
+
+const PAYMENT_FILTERS = [
+    { key: 'all', label: 'Todos' },
+    { key: 'cash', label: 'Efectivo' },
+    { key: 'mercadopago', label: 'Mercado Pago' },
+    { key: 'stripe', label: 'Stripe' },
+];
 
 const CATEGORY_LABELS = {
     economy: 'Económico',
@@ -44,9 +59,6 @@ const MONTHS_SHORT = [
     'dic',
 ];
 
-/**
- * Formatea fecha compacta ("12 nov · 19:25").
- */
 function formatTripDate(dateValue) {
     if (!dateValue) return 'Sin fecha';
     const d = dateValue instanceof Date ? dateValue : new Date(dateValue);
@@ -60,10 +72,6 @@ function formatTripDate(dateValue) {
     return `${day} ${month} · ${hours}:${minutes}`;
 }
 
-/**
- * Redondea kilómetros a máximo 1 decimal y minutos a entero para evitar
- * números largos o desproporcionados en viajes antiguos.
- */
 function formatMetrics(distanceKm, durationMin) {
     const km = Math.round((Number(distanceKm) || 0) * 10) / 10;
     const min = Math.round(Number(durationMin) || 0);
@@ -77,15 +85,78 @@ export default function HistoryScreen({ navigation }) {
 
     const { trips, loading, refreshEarnings } = useEarnings(driverId);
 
+    const [dateFilter, setDateFilter] = useState('all');
+    const [paymentFilter, setPaymentFilter] = useState('all');
     const [visibleCount, setVisibleCount] = useState(HISTORY_PAGE_SIZE);
     const [refreshing, setRefreshing] = useState(false);
 
+    const filteredTrips = useMemo(() => {
+        const now = new Date();
+        const startOfToday = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+            0,
+            0,
+            0,
+            0
+        );
+        const startOfWeek = new Date(now);
+        startOfWeek.setDate(now.getDate() - 7);
+        startOfWeek.setHours(0, 0, 0, 0);
+        const startOfMonth = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            1,
+            0,
+            0,
+            0,
+            0
+        );
+
+        return trips.filter((trip) => {
+            if (paymentFilter !== 'all') {
+                const method = String(trip.paymentMethod || 'cash').toLowerCase();
+                if (method !== paymentFilter) return false;
+            }
+
+            if (dateFilter !== 'all') {
+                const tripDate =
+                    trip.completedDate instanceof Date
+                        ? trip.completedDate
+                        : new Date(trip.completedDate || 0);
+
+                if (dateFilter === 'today' && tripDate < startOfToday) return false;
+                if (dateFilter === 'week' && tripDate < startOfWeek) return false;
+                if (dateFilter === 'month' && tripDate < startOfMonth) return false;
+            }
+
+            return true;
+        });
+    }, [trips, dateFilter, paymentFilter]);
+
     const paginatedTrips = useMemo(
-        () => trips.slice(0, visibleCount),
-        [trips, visibleCount]
+        () => filteredTrips.slice(0, visibleCount),
+        [filteredTrips, visibleCount]
     );
 
-    const hasMore = visibleCount < trips.length;
+    const hasMore = visibleCount < filteredTrips.length;
+
+    const handleSelectDateFilter = useCallback((key) => {
+        setDateFilter(key);
+        setVisibleCount(HISTORY_PAGE_SIZE);
+    }, []);
+
+    const handleSelectPaymentFilter = useCallback((key) => {
+        setPaymentFilter(key);
+        setVisibleCount(HISTORY_PAGE_SIZE);
+    }, []);
+
+    const handleResetFilters = useCallback(() => {
+        setDateFilter('all');
+        setPaymentFilter('all');
+        setVisibleCount(HISTORY_PAGE_SIZE);
+    }, []);
 
     const handleLoadMore = useCallback(() => {
         if (!hasMore) return;
@@ -101,158 +172,189 @@ export default function HistoryScreen({ navigation }) {
 
     const keyExtractor = useCallback((item) => String(item.id), []);
 
-    const renderTripItem = useCallback(({ item }) => {
-        const payment = getPaymentMethod(item.paymentMethod);
-        const isCash =
-            String(item.paymentMethod || 'cash').toLowerCase() === 'cash';
-        const isPaid = String(item.status || '').toLowerCase() === 'paid';
-        const categoryLabel =
-            CATEGORY_LABELS[item.category] || item.category || 'Económico';
+    const renderTripItem = useCallback(
+        ({ item }) => {
+            const payment = getPaymentMethod(item.paymentMethod);
+            const methodKey = String(item.paymentMethod || 'cash').toLowerCase();
+            const isCash = methodKey === 'cash';
+            const isStripe = methodKey === 'stripe';
+            const isPaid = String(item.status || '').toLowerCase() === 'paid';
+            const categoryLabel =
+                CATEGORY_LABELS[item.category] || item.category || 'Económico';
 
-        const fare = Math.round(Number(item.fare) || 0);
-        const commission = Math.round(Number(item.commission) || 0);
-        const net = Math.round(
-            Number(item.driverEarnings) || Math.max(0, fare - commission)
-        );
+            const fare = Math.round(Number(item.fare) || 0);
+            const commission = Math.round(Number(item.commission) || 0);
+            const net = Math.round(
+                Number(item.driverEarnings) || Math.max(0, fare - commission)
+            );
 
-        return (
-            <View style={styles.tripCard}>
-                {/* Cabecera compacta: Fecha + Estado */}
-                <View style={styles.cardHeaderRow}>
-                    <View style={styles.dateBox}>
-                        <Ionicons
-                            name="time-outline"
-                            size={13}
-                            color="#6B7280"
-                        />
-                        <Text style={styles.dateText} numberOfLines={1}>
-                            {formatTripDate(item.completedDate)}
-                        </Text>
-                        <Text style={styles.dotSeparator}>·</Text>
-                        <Text style={styles.metricsInlineText} numberOfLines={1}>
-                            {formatMetrics(item.distanceKm, item.durationMin)}
-                        </Text>
-                    </View>
+            const methodPillStyle = isCash
+                ? styles.cashMethodPill
+                : isStripe
+                ? styles.stripeMethodPill
+                : styles.digitalMethodPill;
+            const methodTextStyle = isCash
+                ? styles.cashMethodText
+                : isStripe
+                ? styles.stripeMethodText
+                : styles.digitalMethodText;
+            const methodIconColor = isCash
+                ? '#B45309'
+                : isStripe
+                ? '#4F46E5'
+                : '#0369A1';
 
-                    <View
-                        style={[
-                            styles.statusBadge,
-                            isPaid
-                                ? styles.statusBadgePaid
-                                : styles.statusBadgeCompleted,
-                        ]}
-                    >
-                        <Text
-                            style={[
-                                styles.statusBadgeText,
-                                isPaid
-                                    ? styles.statusTextPaid
-                                    : styles.statusTextCompleted,
-                            ]}
-                        >
-                            {getStatusLabel(item.status)}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Ruta limpia en 2 líneas compactas */}
-                <View style={styles.routeBox}>
-                    <View style={styles.routeLine}>
-                        <View style={styles.originDot} />
-                        <Text style={styles.routeAddress} numberOfLines={1}>
-                            {item.origin?.address || 'Origen no disponible'}
-                        </Text>
-                    </View>
-
-                    <View style={styles.routeConnector} />
-
-                    <View style={styles.routeLine}>
-                        <View style={styles.destinationDot} />
-                        <Text style={styles.routeAddress} numberOfLines={1}>
-                            {item.destination?.address || 'Destino no disponible'}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Fila 3: Píldoras a la izquierda y Ganancia neta a la derecha (mucho aire entre ambos) */}
-                <View style={styles.footerRow}>
-                    <View style={styles.pillsGroup}>
-                        <View
-                            style={[
-                                styles.tagPill,
-                                isCash ? styles.cashMethodPill : styles.digitalMethodPill,
-                            ]}
-                        >
+            return (
+                <TouchableOpacity
+                    style={styles.tripCard}
+                    activeOpacity={0.85}
+                    onPress={() => navigation.navigate('TripDetail', { trip: item })}
+                >
+                    {/* Cabecera compacta: Fecha + Estado */}
+                    <View style={styles.cardHeaderRow}>
+                        <View style={styles.dateBox}>
                             <Ionicons
-                                name={payment.icon}
-                                size={12}
-                                color={isCash ? '#B45309' : '#0369A1'}
+                                name="time-outline"
+                                size={13}
+                                color="#6B7280"
                             />
-                            <Text
-                                style={[
-                                    styles.tagText,
-                                    isCash ? styles.cashMethodText : styles.digitalMethodText,
-                                ]}
-                            >
-                                {payment.label}
+                            <Text style={styles.dateText} numberOfLines={1}>
+                                {formatTripDate(item.completedDate)}
+                            </Text>
+                            <Text style={styles.dotSeparator}>·</Text>
+                            <Text style={styles.metricsInlineText} numberOfLines={1}>
+                                {formatMetrics(item.distanceKm, item.durationMin)}
                             </Text>
                         </View>
 
-                        <View style={styles.tagPill}>
-                            <Text style={styles.tagText}>{categoryLabel}</Text>
+                        <View
+                            style={[
+                                styles.statusBadge,
+                                isPaid
+                                    ? styles.statusBadgePaid
+                                    : styles.statusBadgeCompleted,
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    styles.statusBadgeText,
+                                    isPaid
+                                        ? styles.statusTextPaid
+                                        : styles.statusTextCompleted,
+                                ]}
+                            >
+                                {getStatusLabel(item.status)}
+                            </Text>
                         </View>
                     </View>
 
-                    <Text style={styles.netEarningsValue}>
-                        +{formatCOP(net)}
-                    </Text>
-                </View>
+                    {/* Ruta limpia en 2 líneas compactas */}
+                    <View style={styles.routeBox}>
+                        <View style={styles.routeLine}>
+                            <View style={styles.originDot} />
+                            <Text style={styles.routeAddress} numberOfLines={1}>
+                                {item.origin?.address || 'Origen no disponible'}
+                            </Text>
+                        </View>
 
-                {/* Fila 4 exclusiva para desglose: Tarifa a la izquierda, Comisión descontada a la derecha */}
-                <View style={styles.breakdownBar}>
-                    <Text style={styles.fareSubText}>
-                        Tarifa: {formatCOP(fare)}
-                    </Text>
-                    {commission > 0 && (
-                        <Text style={styles.commissionDiscountText}>
-                            Comisión (20%): −{formatCOP(commission)}
+                        <View style={styles.routeConnector} />
+
+                        <View style={styles.routeLine}>
+                            <View style={styles.destinationDot} />
+                            <Text style={styles.routeAddress} numberOfLines={1}>
+                                {item.destination?.address || 'Destino no disponible'}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Fila 3: Píldoras a la izquierda y Ganancia neta a la derecha */}
+                    <View style={styles.footerRow}>
+                        <View style={styles.pillsGroup}>
+                            <View style={[styles.tagPill, methodPillStyle]}>
+                                <Ionicons
+                                    name={payment.icon}
+                                    size={12}
+                                    color={methodIconColor}
+                                />
+                                <Text style={[styles.tagText, methodTextStyle]}>
+                                    {payment.label}
+                                </Text>
+                            </View>
+
+                            <View style={styles.tagPill}>
+                                <Text style={styles.tagText}>{categoryLabel}</Text>
+                            </View>
+                        </View>
+
+                        <Text style={styles.netEarningsValue}>
+                            +{formatCOP(net)}
                         </Text>
-                    )}
-                </View>
-            </View>
-        );
-    }, []);
+                    </View>
+
+                    {/* Fila 4 exclusiva para desglose: Tarifa a la izquierda, Comisión descontada a la derecha */}
+                    <View style={styles.breakdownBar}>
+                        <Text style={styles.fareSubText}>
+                            Tarifa: {formatCOP(fare)}
+                        </Text>
+                        {commission > 0 && (
+                            <Text style={styles.commissionDiscountText}>
+                                Comisión (20%): −{formatCOP(commission)}
+                            </Text>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            );
+        },
+        [navigation]
+    );
+
+    const hasActiveFilters = dateFilter !== 'all' || paymentFilter !== 'all';
 
     const renderEmptyState = useCallback(() => {
         if (loading) return null;
         return (
             <View style={styles.emptyContainer}>
                 <View style={styles.emptyIconCircle}>
-                    <Ionicons name="car-sport-outline" size={34} color="#9CA3AF" />
+                    <Ionicons
+                        name={hasActiveFilters ? 'filter-outline' : 'car-sport-outline'}
+                        size={34}
+                        color="#9CA3AF"
+                    />
                 </View>
-                <Text style={styles.emptyTitle}>Sin carreras registradas</Text>
+                <Text style={styles.emptyTitle}>
+                    {hasActiveFilters
+                        ? 'Sin carreras en este filtro'
+                        : 'Sin carreras registradas'}
+                </Text>
                 <Text style={styles.emptySubtitle}>
-                    Aún no tienes viajes completados. Ponte en línea en el mapa de
-                    inicio para recibir solicitudes.
+                    {hasActiveFilters
+                        ? 'No encontramos viajes que coincidan con el período o método de pago seleccionado.'
+                        : 'Aún no tienes viajes completados. Ponte en línea en el mapa de inicio para recibir solicitudes.'}
                 </Text>
                 <TouchableOpacity
                     style={styles.emptyBtn}
-                    onPress={handleRefresh}
+                    onPress={hasActiveFilters ? handleResetFilters : handleRefresh}
                     activeOpacity={0.85}
                 >
-                    <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
-                    <Text style={styles.emptyBtnText}>Actualizar</Text>
+                    <Ionicons
+                        name={hasActiveFilters ? 'close-circle-outline' : 'refresh-outline'}
+                        size={16}
+                        color="#FFFFFF"
+                    />
+                    <Text style={styles.emptyBtnText}>
+                        {hasActiveFilters ? 'Limpiar filtros' : 'Actualizar'}
+                    </Text>
                 </TouchableOpacity>
             </View>
         );
-    }, [loading, handleRefresh]);
+    }, [loading, hasActiveFilters, handleResetFilters, handleRefresh]);
 
     const renderFooter = useCallback(() => {
         if (!hasMore) {
             if (paginatedTrips.length > 0) {
                 return (
                     <Text style={styles.endOfListText}>
-                        Mostrando {paginatedTrips.length} de {trips.length} carreras
+                        Mostrando {paginatedTrips.length} de {filteredTrips.length} carreras
                     </Text>
                 );
             }
@@ -266,12 +368,12 @@ export default function HistoryScreen({ navigation }) {
                 activeOpacity={0.85}
             >
                 <Text style={styles.loadMoreText}>
-                    Cargar más ({paginatedTrips.length}/{trips.length})
+                    Cargar más ({paginatedTrips.length}/{filteredTrips.length})
                 </Text>
                 <Ionicons name="chevron-down" size={16} color="#111827" />
             </TouchableOpacity>
         );
-    }, [hasMore, paginatedTrips.length, trips.length, handleLoadMore]);
+    }, [hasMore, paginatedTrips.length, filteredTrips.length, handleLoadMore]);
 
     return (
         <View style={styles.container}>
@@ -288,10 +390,92 @@ export default function HistoryScreen({ navigation }) {
                         Historial de Carreras
                     </Text>
                     <Text style={styles.headerSub} numberOfLines={1}>
-                        {trips.length}{' '}
-                        {trips.length === 1 ? 'viaje' : 'viajes'} · {HISTORY_PAGE_SIZE} por página
+                        {filteredTrips.length}{' '}
+                        {filteredTrips.length === 1 ? 'viaje' : 'viajes'} · {HISTORY_PAGE_SIZE} por página
                     </Text>
                 </View>
+            </View>
+
+            {/* Barra simple y limpia de filtros con colores suaves y agradables */}
+            <View style={styles.filtersContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.filterScrollRow}
+                >
+                    <Text style={styles.filterGroupLabel}>Fecha:</Text>
+                    {DATE_FILTERS.map((f) => {
+                        const active = dateFilter === f.key;
+                        return (
+                            <TouchableOpacity
+                                key={f.key}
+                                style={[
+                                    styles.filterChip,
+                                    active && styles.dateChipActive,
+                                ]}
+                                onPress={() => handleSelectDateFilter(f.key)}
+                                activeOpacity={0.8}
+                            >
+                                <Text
+                                    style={[
+                                        styles.filterChipText,
+                                        active && styles.filterChipTextActive,
+                                    ]}
+                                >
+                                    {f.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={[styles.filterScrollRow, { marginTop: 6 }]}
+                >
+                    <Text style={styles.filterGroupLabel}>Pago:</Text>
+                    {PAYMENT_FILTERS.map((f) => {
+                        const active = paymentFilter === f.key;
+                        const activeStyle =
+                            f.key === 'cash'
+                                ? styles.cashChipActive
+                                : f.key === 'stripe'
+                                ? styles.stripeChipActive
+                                : f.key === 'mercadopago'
+                                ? styles.digitalChipActive
+                                : styles.dateChipActive;
+                        const activeTextStyle =
+                            f.key === 'cash'
+                                ? styles.cashChipTextActive
+                                : f.key === 'stripe'
+                                ? styles.stripeChipTextActive
+                                : f.key === 'mercadopago'
+                                ? styles.digitalChipTextActive
+                                : styles.filterChipTextActive;
+
+                        return (
+                            <TouchableOpacity
+                                key={f.key}
+                                style={[
+                                    styles.filterChip,
+                                    active && activeStyle,
+                                ]}
+                                onPress={() => handleSelectPaymentFilter(f.key)}
+                                activeOpacity={0.8}
+                            >
+                                <Text
+                                    style={[
+                                        styles.filterChipText,
+                                        active && activeTextStyle,
+                                    ]}
+                                >
+                                    {f.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
             </View>
 
             {loading && !refreshing ? (
@@ -362,6 +546,68 @@ const styles = StyleSheet.create({
         fontSize: 11,
         color: '#9CA3AF',
         marginTop: 1,
+    },
+    filtersContainer: {
+        backgroundColor: '#FFFFFF',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
+    },
+    filterScrollRow: {
+        paddingHorizontal: 12,
+        alignItems: 'center',
+    },
+    filterGroupLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#6B7280',
+        marginRight: 6,
+    },
+    filterChip: {
+        backgroundColor: '#F3F4F6',
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 14,
+        marginRight: 6,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    dateChipActive: {
+        backgroundColor: '#EEF2FF',
+        borderColor: '#C7D2FE',
+    },
+    cashChipActive: {
+        backgroundColor: '#FEF3C7',
+        borderColor: '#FDE68A',
+    },
+    digitalChipActive: {
+        backgroundColor: '#E0F2FE',
+        borderColor: '#BAE6FD',
+    },
+    stripeChipActive: {
+        backgroundColor: '#EEF2FF',
+        borderColor: '#C7D2FE',
+    },
+    filterChipText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#4B5563',
+    },
+    filterChipTextActive: {
+        color: '#3730A3',
+        fontWeight: '700',
+    },
+    cashChipTextActive: {
+        color: '#B45309',
+        fontWeight: '700',
+    },
+    digitalChipTextActive: {
+        color: '#0369A1',
+        fontWeight: '700',
+    },
+    stripeChipTextActive: {
+        color: '#4F46E5',
+        fontWeight: '700',
     },
     loadingBox: {
         flex: 1,
@@ -501,6 +747,9 @@ const styles = StyleSheet.create({
     digitalMethodPill: {
         backgroundColor: '#E0F2FE',
     },
+    stripeMethodPill: {
+        backgroundColor: '#EEF2FF',
+    },
     tagText: {
         fontSize: 11,
         fontWeight: '600',
@@ -512,6 +761,9 @@ const styles = StyleSheet.create({
     },
     digitalMethodText: {
         color: '#0369A1',
+    },
+    stripeMethodText: {
+        color: '#4F46E5',
     },
     netEarningsValue: {
         fontSize: 14,

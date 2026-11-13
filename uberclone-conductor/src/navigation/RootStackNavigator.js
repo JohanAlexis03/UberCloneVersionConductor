@@ -1,4 +1,4 @@
-// AI-assisted: see docs/AI_LOG.md #28
+// AI-assisted: see docs/AI_LOG.md #29
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -7,6 +7,7 @@ import HomeScreen from '../screens/main/HomeScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
 import HistoryScreen from '../screens/main/HistoryScreen';
+import TripDetailScreen from '../screens/trip/TripDetailScreen';
 import TripInProgressScreen from '../screens/trip/TripInProgressScreen';
 import TripPaymentScreen from '../screens/trip/TripPaymentScreen';
 import { useDriver } from '../context/DriverContext';
@@ -65,6 +66,7 @@ export default function RootStackNavigator() {
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="History" component={HistoryScreen} />
+        <Stack.Screen name="TripDetail" component={TripDetailScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
       </>
     );
