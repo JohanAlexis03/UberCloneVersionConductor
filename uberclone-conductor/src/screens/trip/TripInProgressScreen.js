@@ -81,6 +81,10 @@ export default function TripInProgressScreen() {
     // Trazado de recogida calculado desde donde está el carro ahora.
     const [livePickupRoute, setLivePickupRoute] = useState([]);
 
+    // Simulador de movimiento del vehículo punto a punto sobre la polilínea
+    const [isSimulatingDrive, setIsSimulatingDrive] = useState(true);
+    const [simStepIndex, setSimStepIndex] = useState(0);
+
     // Último punto desde el que se pidió ese trazado, para no repetir la
     // petición con cada lectura del GPS.
     const lastPickupFetchRef = useRef(null);
@@ -190,6 +194,65 @@ export default function TripInProgressScreen() {
         origin,
     ]);
 
+    // Ruta activa sobre la que se mueve el carrito según la etapa del viaje:
+    // - En camino al pasajero (accepted / driver_arriving) -> pickupRoute
+    // - Con pasajero a bordo (in_progress) -> tripRoute
+    const activeLegRoute = useMemo(() => {
+        if (needsPickupLeg && pickupRoute.length >= 2) return pickupRoute;
+        if (status === TRIP_STATUS.IN_PROGRESS && tripRoute.length >= 2) return tripRoute;
+        return [];
+    }, [needsPickupLeg, pickupRoute, status, tripRoute]);
+
+    // Reiniciar el paso del carrito cuando cambia la etapa del viaje
+    useEffect(() => {
+        setSimStepIndex(0);
+    }, [status, activeTrip?.id]);
+
+    // Efecto con cleanup estricto que mueve el carrito por las coordenadas de la calle
+    useEffect(() => {
+        if (!isSimulatingDrive || activeLegRoute.length < 2) return;
+
+        // Salto proporcional para que el recorrido completo tome ~20-25 segundos en demo
+        const stepIncrement = Math.max(1, Math.ceil(activeLegRoute.length / 45));
+
+        const intervalId = setInterval(() => {
+            setSimStepIndex((prev) => {
+                const next = prev + stepIncrement;
+                if (next >= activeLegRoute.length - 1) {
+                    return activeLegRoute.length - 1;
+                }
+                return next;
+            });
+        }, 550);
+
+        // CLEANUP OBLIGATORIO: limpiar el intervalo al pausar, cambiar estado o desmontar
+        return () => clearInterval(intervalId);
+    }, [isSimulatingDrive, activeLegRoute]);
+
+    // Posición actual del carrito en el mapa y tramo restante por recorrer
+    const carPosition = useMemo(() => {
+        if (activeLegRoute.length >= 2) {
+            const safeIdx = Math.min(simStepIndex, activeLegRoute.length - 1);
+            return activeLegRoute[safeIdx];
+        }
+        return driverPoint || origin;
+    }, [activeLegRoute, simStepIndex, driverPoint, origin]);
+
+    const visiblePickupRoute = useMemo(() => {
+        if (!needsPickupLeg || pickupRoute.length < 2) return [];
+        const safeIdx = Math.min(simStepIndex, pickupRoute.length - 2);
+        return pickupRoute.slice(safeIdx);
+    }, [needsPickupLeg, pickupRoute, simStepIndex]);
+
+    const visibleTripRoute = useMemo(() => {
+        if (tripRoute.length < 2) return [];
+        if (status === TRIP_STATUS.IN_PROGRESS) {
+            const safeIdx = Math.min(simStepIndex, tripRoute.length - 2);
+            return tripRoute.slice(safeIdx);
+        }
+        return tripRoute;
+    }, [tripRoute, status, simStepIndex]);
+
     // Bloque 4: un solo manejador. Avanza si hay a dónde ir; si el viaje ya
     // cerró, libera al conductor.
     const handleMainAction = useCallback(async () => {
@@ -267,15 +330,13 @@ export default function TripInProgressScreen() {
                 </Text>
             </View>
 
-            {/* Bloque 6b: mapa con las rutas dibujadas.
-                Se usan <Polyline /> de react-native-maps, no una imagen
-                estática: la ruta se redibuja cuando cambia el estado. */}
+            {/* Bloque 6b: mapa con las rutas dibujadas y carrito en movimiento */}
             <View style={styles.mapBlock}>
                 <MapView
                     ref={mapRef}
                     style={styles.map}
                     provider={PROVIDER_DEFAULT}
-                    showsUserLocation
+                    showsUserLocation={false}
                     initialRegion={{
                         latitude: origin?.latitude ?? 6.2442,
                         longitude: origin?.longitude ?? -75.5812,
@@ -283,21 +344,19 @@ export default function TripInProgressScreen() {
                         longitudeDelta: 0.03,
                     }}
                 >
-                    {/* Tramo de recogida: conductor -> punto de recogida.
-                        Va solido porque es el trazado real por calles, no una
-                        aproximacion en linea recta. */}
-                    {pickupRoute.length >= 2 && (
+                    {/* Tramo de recogida restante: carrito -> punto de recogida */}
+                    {visiblePickupRoute.length >= 2 && (
                         <Polyline
-                            coordinates={pickupRoute}
+                            coordinates={visiblePickupRoute}
                             strokeColor={PICKUP_COLOR}
                             strokeWidth={4}
                         />
                     )}
 
-                    {/* Ruta del viaje: recogida -> destino */}
-                    {tripRoute.length >= 2 && (
+                    {/* Ruta del viaje restante: recogida/carrito -> destino */}
+                    {visibleTripRoute.length >= 2 && (
                         <Polyline
-                            coordinates={tripRoute}
+                            coordinates={visibleTripRoute}
                             strokeColor={TRIP_COLOR}
                             strokeWidth={4}
                         />
@@ -309,7 +368,57 @@ export default function TripInProgressScreen() {
                     {destination && (
                         <Marker coordinate={destination} title="Destino" pinColor="#111827" />
                     )}
+
+                    {/* Marcador del carrito del conductor avanzando por las calles */}
+                    {carPosition && (
+                        <Marker
+                            coordinate={carPosition}
+                            title="Tu vehículo"
+                            anchor={{ x: 0.5, y: 0.5 }}
+                        >
+                            <View style={styles.carMarkerBubble}>
+                                <Ionicons name="car-sport" size={18} color="#FFFFFF" />
+                            </View>
+                        </Marker>
+                    )}
                 </MapView>
+
+                {/* Botón flotante para pausar/reanudar o reiniciar el movimiento del carrito */}
+                {activeLegRoute.length >= 2 && (
+                    <View style={styles.simOverlayRow}>
+                        <TouchableOpacity
+                            style={styles.simPillBtn}
+                            onPress={() => {
+                                if (simStepIndex >= activeLegRoute.length - 1) {
+                                    setSimStepIndex(0);
+                                    setIsSimulatingDrive(true);
+                                } else {
+                                    setIsSimulatingDrive((prev) => !prev);
+                                }
+                            }}
+                            activeOpacity={0.85}
+                        >
+                            <Ionicons
+                                name={
+                                    simStepIndex >= activeLegRoute.length - 1
+                                        ? 'refresh'
+                                        : isSimulatingDrive
+                                        ? 'pause'
+                                        : 'play'
+                                }
+                                size={13}
+                                color="#FFFFFF"
+                            />
+                            <Text style={styles.simPillText}>
+                                {simStepIndex >= activeLegRoute.length - 1
+                                    ? 'Repetir recorrido'
+                                    : isSimulatingDrive
+                                    ? 'Carrito en marcha'
+                                    : 'Mover carrito'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
 
             <ScrollView
@@ -456,9 +565,44 @@ const styles = StyleSheet.create({
     mapBlock: {
         height: MAP_HEIGHT,
         backgroundColor: '#E5E7EB',
+        position: 'relative',
     },
     map: {
         flex: 1,
+    },
+    carMarkerBubble: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: '#111827',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
+        elevation: 4,
+        shadowColor: '#000000',
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+    },
+    simOverlayRow: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+    },
+    simPillBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(17, 24, 39, 0.85)',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 16,
+    },
+    simPillText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '700',
+        marginLeft: 5,
     },
     scrollContent: {
         padding: 16,

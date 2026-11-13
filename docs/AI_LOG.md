@@ -411,6 +411,18 @@ Cada módulo o avance realizado con asistencia de IA debe documentarse usando es
 - **Prompt:** "3f9313e" — continuación al Commit #31 (Earnings dashboard + MainDrawerNavigator).
 - **Resumen de la respuesta:** Se implementó `src/screens/main/EarningsScreen.js` consumiendo `useEarnings` para mostrar el saldo acumulado (diferenciando saldo a favor en verde vs deuda de comisiones por efectivo en rojo), selector de período (Hoy, Semana, Mes) y las 6 métricas financieras oficiales. Además se creó `src/navigation/MainDrawerNavigator.js` con las 5 opciones del menú principal (`Home`, `Profile`, `History`, `Earnings`, `Settings`) y se conectó en `RootStackNavigator.js` y `HomeScreen.js`.
 - **Qué se usó / modificó / descartó:** Se usó `@react-navigation/drawer` combinado con Native Stack y Bottom Tabs cumpliendo la arquitectura de navegación de la Sección 1, y `useEarnings` con `useMemo` para todas las agregaciones financieras.
-- **Archivos y commit:** `uberclone-conductor/src/screens/main/EarningsScreen.js`, `uberclone-conductor/src/navigation/MainDrawerNavigator.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/HomeScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Archivos y commit:** `uberclone-conductor/src/screens/main/EarningsScreen.js`, `uberclone-conductor/src/navigation/MainDrawerNavigator.js`, `uberclone-conductor/src/navigation/RootStackNavigator.js`, `uberclone-conductor/src/screens/main/HomeScreen.js`, `docs/AI_LOG.md` — `3a05e36`
 - **Verificación:** Validación estática con `@babel/parser` sobre `EarningsScreen.js`, `MainDrawerNavigator.js`, `RootStackNavigator.js` y `HomeScreen.js`.
 - **Aprendizaje:** La separación entre ganancia neta del período y saldo acumulado en cuenta permite reflejar con exactitud contable que los viajes en efectivo ya fueron cobrados en mano por el conductor y descuentan su comisión del 20% contra el saldo de pasarela.
+
+### Entrada #31 (Commit 32/32)
+- **Fecha:** 2026-11-12
+- **Integrante:** Johan Alexis García
+- **Herramienta:** Google Antigravity
+- **Objetivo:** Implementar la simulación de movimiento en tiempo real del vehículo punto a punto sobre las coordenadas de `<Polyline />` en `TripInProgressScreen.js` para los tramos de recogida y viaje en curso.
+- **Prompt:** "sabes que me gustaria integrar un simulador de recogida real, osea que se mueva el carrito"
+- **Resumen de la respuesta:** Se añadió en `TripInProgressScreen.js` un marcador animado de vehículo (`car-sport`) que avanza progresivamente sobre las coordenadas reales de OSRM (`pickupRoute` durante `accepted`/`driver_arriving` y `tripRoute` durante `in_progress`), recortando el tramo ya recorrido de la `<Polyline />` y exponiendo un botón flotante para pausar, reanudar o repetir el recorrido con limpieza estricta (`clearInterval`) en `useEffect`.
+- **Qué se usó / modificó / descartó:** Se usó `setInterval` dentro de `useEffect` con `clearInterval` en el retorno de limpieza y `slice` memorizado con `useMemo` para acortar la ruta a medida que el vehículo avanza.
+- **Archivos y commit:** `uberclone-conductor/src/screens/trip/TripInProgressScreen.js`, `docs/AI_LOG.md` — `[PENDIENTE_HASH]`
+- **Verificación:** Validación estática con `@babel/parser` y prueba visual del avance del marcador sobre las calles hacia el punto de recogida y hacia el destino final.
+- **Aprendizaje:** Consumir progresivamente el arreglo de coordenadas de la ruta (`route.slice(simStepIndex)`) sincroniza la posición del marcador con el extremo vivo de la polilínea, evitando que quede rastro detrás del vehículo.
